@@ -1,8 +1,7 @@
 {
+    "package": "openevidence_panel",
     "name": "OpenEvidence Panel",
-    "version": "1.0.0",
-    "min_point_version": 45,
-    "max_point_version": 45,
-    "human_name": "OpenEvidence Panel"
+    "mod": 1734480000,
+    "conflicts": []
 }
 

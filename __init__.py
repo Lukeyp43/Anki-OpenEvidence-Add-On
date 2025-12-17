@@ -221,7 +221,7 @@ def add_toolbar_button(links, toolbar):
     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
 </svg>
 """
-    
+
     # Add the button to the toolbar using Anki's standard hitem class
     links.append(
         f'<a class="hitem" href="#" onclick="pycmd(\'openevidence\'); return false;" title="OpenEvidence">{open_book_icon}</a>'

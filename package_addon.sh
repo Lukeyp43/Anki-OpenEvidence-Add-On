@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Script to package the OpenEvidence Panel addon for distribution
+
+echo "Packaging OpenEvidence Panel addon..."
+
+# Get the script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+# Remove __pycache__ directories (required by AnkiWeb)
+echo "Cleaning __pycache__ directories..."
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+
+# Create the .ankiaddon package
+echo "Creating openevidence_panel.ankiaddon..."
+zip -r ../openevidence_panel.ankiaddon \
+    __init__.py \
+    manifest.json \
+    config.json \
+    README.md \
+    -x "*.pyc" -x "__pycache__/*" -x ".DS_Store" -x "package_addon.sh"
+
+if [ $? -eq 0 ]; then
+    echo "✓ Package created successfully!"
+    echo "✓ Location: $(dirname "$SCRIPT_DIR")/openevidence_panel.ankiaddon"
+    echo ""
+    echo "You can now share this file with your friends."
+    echo "They can install it by double-clicking or via Tools → Add-ons → Install from file"
+else
+    echo "✗ Error creating package"
+    exit 1
+fi
