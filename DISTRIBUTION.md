@@ -109,3 +109,4 @@ openevidence_panel/
 ```
 
 The `.ankiaddon` file is simply a ZIP file containing these files (without the parent folder).
+
