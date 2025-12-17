@@ -194,27 +194,17 @@ def on_webview_did_receive_js_message(handled, message, context):
 
 def add_toolbar_button(links, toolbar):
     """Add OpenEvidence button to the top toolbar"""
-    # Check for custom icon file
-    addon_path = os.path.dirname(__file__)
-    icon_path = os.path.join(addon_path, "icon.png")
+    # Create open book SVG icon (matching Anki's icon size and style)
+    open_book_icon = """
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -0.2em;">
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+</svg>
+"""
     
-    # Create button HTML
-    if os.path.exists(icon_path):
-        addon_name = os.path.basename(addon_path)
-        icon_src = f"/_addons/{addon_name}/icon.png"
-        icon_html = f'<img src="{icon_src}" style="width: 20px; height: 20px; vertical-align: middle;">'
-    else:
-        # Use book emoji as fallback
-        icon_html = "📚"
-    
-    # Add the button link to the toolbar
+    # Add the button to the toolbar using Anki's standard hitem class
     links.append(
-        f'''
-        <a class="hitem" href="#" onclick="pycmd('openevidence'); return false;" 
-           title="OpenEvidence" style="display: inline-flex; align-items: center; padding: 0 6px;">
-            {icon_html}
-        </a>
-        '''
+        f'<a class="hitem" href="#" onclick="pycmd(\'openevidence\'); return false;" title="OpenEvidence">{open_book_icon}</a>'
     )
 
 # Hook registration
