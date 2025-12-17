@@ -2,24 +2,16 @@ import os
 import aqt
 from aqt import mw, gui_hooks
 from aqt.qt import *
-from aqt.qt import QDialog, QVBoxLayout, Qt, QUrl
+from aqt.qt import QDockWidget, QVBoxLayout, Qt, QUrl, QWidget
 from aqt.utils import showInfo, tooltip
 
 # Global reference to prevent garbage collection
-panel_instance = None
+dock_widget = None
 
-class OpenEvidenceDialog(QDialog):
+class OpenEvidencePanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("OpenEvidence")
-        
-        # Configure window flags
-        # Window makes it a standalone window
-        # WindowStaysOnTopHint can be used if desired, but user didn't explicitly ask for it to be always on top, just "stay open"
-        self.setWindowFlags(Qt.WindowType.Window)
-        
         self.setup_ui()
-        self.load_config()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -40,42 +32,50 @@ class OpenEvidenceDialog(QDialog):
         
         self.web.load(QUrl("https://www.openevidence.com/"))
 
-    def load_config(self):
+def create_dock_widget():
+    """Create the dock widget for OpenEvidence panel"""
+    global dock_widget
+    
+    if dock_widget is None:
+        # Create the dock widget
+        dock_widget = QDockWidget("OpenEvidence", mw)
+        dock_widget.setObjectName("OpenEvidenceDock")
+        
+        # Create the panel widget
+        panel = OpenEvidencePanel()
+        dock_widget.setWidget(panel)
+        
+        # Get config for width
         config = mw.addonManager.getConfig(__name__) or {}
-        self.panel_width = config.get("width", 500)
-        self.height_percentage = config.get("height_percentage", 0.95)
-
-    def show_side_panel(self):
-        # Get screen geometry
-        screen = self.screen()
-        available_rect = screen.availableGeometry()
+        panel_width = config.get("width", 500)
         
-        height = int(available_rect.height() * self.height_percentage)
-        width = self.panel_width
+        # Set initial size
+        dock_widget.setMinimumWidth(300)
+        dock_widget.resize(panel_width, mw.height())
         
-        # Position on the right side
-        x = available_rect.width() - width - 20
-        y = available_rect.top() + 10
+        # Add the dock widget to the right side of the main window
+        mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock_widget)
         
-        self.resize(width, height)
-        self.move(x, y)
+        # Hide by default
+        dock_widget.hide()
         
-        self.show()
-        self.raise_()
-        self.activateWindow()
+        # Store reference to prevent garbage collection
+        mw.openevidence_dock = dock_widget
+    
+    return dock_widget
 
 def toggle_panel():
-    global panel_instance
-    if not panel_instance:
-        panel_instance = OpenEvidenceDialog(mw)
+    """Toggle the OpenEvidence dock widget visibility"""
+    global dock_widget
     
-    if panel_instance.isVisible():
-        if panel_instance.windowState() & Qt.WindowState.WindowMinimized:
-             panel_instance.setWindowState(panel_instance.windowState() & ~Qt.WindowState.WindowMinimized)
-        panel_instance.raise_()
-        panel_instance.activateWindow()
+    if dock_widget is None:
+        create_dock_widget()
+    
+    if dock_widget.isVisible():
+        dock_widget.hide()
     else:
-        panel_instance.show_side_panel()
+        dock_widget.show()
+        dock_widget.raise_()
 
 def on_webview_did_receive_js_message(handled, message, context):
     if message == "openevidence":
@@ -115,3 +115,6 @@ gui_hooks.webview_did_receive_js_message.append(on_webview_did_receive_js_messag
 
 # Add toolbar button
 gui_hooks.top_toolbar_did_init_links.append(add_toolbar_button)
+
+# Initialize dock widget when main window is ready
+gui_hooks.main_window_did_init.append(create_dock_widget)
