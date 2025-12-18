@@ -9,7 +9,7 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 - 🎯 **Modern UI**: Minimalistic design with smooth hover effects
 - 🔄 **Flexible Layout**: Dock, undock, or resize the panel as needed
 - ⚡ **Quick Access**: Toggle the panel on/off with a single click
-- ⌨️ **Shift Key Shortcut**: Press Shift in the OpenEvidence search box to auto-fill with current card text
+- ⌨️ **Keyboard Shortcut**: Press **Ctrl+Shift** (or **Cmd+Shift** on Mac) in the OpenEvidence search box to auto-fill with current card text
 
 ## Installation
 
@@ -41,12 +41,12 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 
 ### Quick Search Feature ⚡
 
-Press **Shift** while focused on the OpenEvidence search box to automatically fill it with your current card's text!
+Press **Ctrl+Shift** (or **Cmd+Shift** on Mac) while focused on the OpenEvidence search box to automatically fill it with your current card's text!
 
 **How it works:**
 1. Review a card in Anki
 2. Click on the OpenEvidence search box (the input must be actively focused)
-3. Press **Shift** → The search box fills with formatted card text
+3. Press **Ctrl+Shift** (Windows/Linux) or **Cmd+Shift** (Mac) → The search box fills with formatted card text
 
 **Smart Formatting:**
 - On the **question side**:
@@ -66,7 +66,11 @@ Press **Shift** while focused on the OpenEvidence search box to automatically fi
   [Your answer text]
   ```
 
-**Important:** Shift only works when you're actively focused on the OpenEvidence search box. Pressing Shift while in Anki or elsewhere will work normally and won't trigger any auto-fill.
+**Why Ctrl+Shift?**
+- Won't interfere with Tab navigation or normal typing
+- Unlikely to trigger accidentally
+- Easy to remember and press with one hand
+- Works consistently across all platforms
 
 
 ## Configuration

@@ -167,21 +167,27 @@ class OpenEvidencePanel(QWidget):
         
         layout.addWidget(self.web)
         
-        # Inject Shift key listener after page loads
+        # Inject Ctrl+Shift (Cmd+Shift on Mac) listener after page loads
         self.web.loadFinished.connect(self.inject_shift_key_listener)
         
         self.web.load(QUrl("https://www.openevidence.com/"))
     
     def inject_shift_key_listener(self):
-        """Inject JavaScript to listen for Shift key ONLY when search input is actively focused"""
+        """Inject JavaScript to listen for Ctrl+Shift (Cmd+Shift on Mac) when search input is actively focused"""
         shift_listener_js = """
         (function() {
-            console.log('Anki: Shift key listener injected for OpenEvidence');
+            console.log('Anki: Ctrl+Shift (Cmd+Shift on Mac) listener injected for OpenEvidence');
             
-            // Listen for Shift key on the entire document
+            // Listen for keyboard shortcut on the entire document
             document.addEventListener('keydown', function(event) {
-                // Only handle Shift key by itself (no other modifiers)
-                if (event.key === 'Shift' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+                // Only handle Ctrl+Shift (or Cmd+Shift on Mac)
+                // Check if Shift is pressed along with Ctrl or Cmd (but no other keys)
+                var isCorrectShortcut = event.shiftKey && 
+                                       (event.ctrlKey || event.metaKey) &&
+                                       !event.altKey &&
+                                       (event.key === 'Shift' || event.key === 'Control' || event.key === 'Meta');
+                
+                if (isCorrectShortcut) {
                     // Check if the ACTIVE ELEMENT is specifically the OpenEvidence search input
                     var activeElement = document.activeElement;
                     
@@ -211,7 +217,7 @@ class OpenEvidencePanel(QWidget):
                     // 1. It's an input/textarea element
                     // 2. It's the OpenEvidence search box
                     if (isInputElement && isOpenEvidenceSearchBox) {
-                        console.log('Anki: Shift pressed in OpenEvidence search box');
+                        console.log('Anki: Ctrl+Shift (or Cmd+Shift) pressed in OpenEvidence search box');
                         event.preventDefault();
                         
                         // Request the card text from Python via a custom property
@@ -264,7 +270,7 @@ class OpenEvidencePanel(QWidget):
                             console.log('Anki: No card text available');
                         }
                     } else {
-                        console.log('Anki: Shift pressed but not in OpenEvidence search box, allowing default behavior');
+                        console.log('Anki: Ctrl+Shift (or Cmd+Shift) pressed but not in OpenEvidence search box, allowing default behavior');
                     }
                 }
             }, true);
@@ -368,7 +374,7 @@ def clean_html_text(html_text):
     return text
 
 def store_current_card_text(card):
-    """Store the current card text globally for Shift key access from OpenEvidence panel"""
+    """Store the current card text globally for Ctrl+Shift (Cmd+Shift on Mac) access from OpenEvidence panel"""
     global current_card_text, current_card_question, current_card_answer, is_showing_answer, dock_widget
     
     try:
@@ -433,6 +439,6 @@ gui_hooks.top_toolbar_did_init_links.append(add_toolbar_button)
 # Initialize dock widget when main window is ready
 gui_hooks.main_window_did_init.append(create_dock_widget)
 
-# Update stored card text when question/answer is shown (for Shift key in OpenEvidence search box)
+# Update stored card text when question/answer is shown (for Ctrl+Shift in OpenEvidence search box)
 gui_hooks.reviewer_did_show_question.append(store_current_card_text)
 gui_hooks.reviewer_did_show_answer.append(store_current_card_text)
