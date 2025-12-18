@@ -1,0 +1,45 @@
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+*.ankiaddon
+dist/
+build/
+*.egg-info/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vscode-test/
+
+# Vim
+*.swp
+*.swo
+*.swn
+
+# Cursor AI
+.git/cursor/
+
+# Logs
+*.log
+
+# Environment
+.env
+.venv
+env/
+venv/

@@ -292,46 +292,294 @@ class OpenEvidencePanel(QWidget):
 def create_dock_widget():
     """Create the dock widget for OpenEvidence panel"""
     global dock_widget
-    
+
     if dock_widget is None:
         # Create the dock widget
         dock_widget = QDockWidget("OpenEvidence", mw)
         dock_widget.setObjectName("OpenEvidenceDock")
-        
-        # Create the panel widget
-        panel = OpenEvidencePanel()
+
+        # Check if onboarding is complete
+        config = mw.addonManager.getConfig(__name__) or {}
+        onboarding_complete = config.get("onboarding_completed", False)
+
+        # Create the appropriate widget
+        if onboarding_complete:
+            panel = OpenEvidencePanel()
+        else:
+            panel = OnboardingWidget()
+
         dock_widget.setWidget(panel)
-        
+
         # Create and set custom title bar with pointer cursors
         custom_title = CustomTitleBar(dock_widget)
         dock_widget.setTitleBarWidget(custom_title)
-        
+
         # Get config for width
-        config = mw.addonManager.getConfig(__name__) or {}
         panel_width = config.get("width", 500)
-        
+
         # Set initial size
         dock_widget.setMinimumWidth(300)
         dock_widget.resize(panel_width, mw.height())
-        
+
         # Add the dock widget to the right side of the main window
         mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock_widget)
-        
+
         # Hide by default
         dock_widget.hide()
-        
+
         # Store reference to prevent garbage collection
         mw.openevidence_dock = dock_widget
-    
+
     return dock_widget
+
+class OnboardingWidget(QWidget):
+    """Onboarding widget shown in the side panel"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.step_completed = False
+        self.setup_ui()
+
+    def set_icon_from_svg(self, label, svg_str, size=20, color=None):
+        """Helper to set SVG icon to a label"""
+        try:
+            from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+            from PyQt6.QtCore import QByteArray, QSize, Qt
+            from PyQt6.QtSvg import QSvgRenderer
+        except ImportError:
+            from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor
+            from PyQt5.QtCore import QByteArray, QSize, Qt
+            from PyQt5.QtSvg import QSvgRenderer
+        
+        # Render at high resolution (4x scale) for crisp display on Retina/HighDPI
+        render_size = size * 4
+        
+        svg_bytes = QByteArray(svg_str.encode())
+        renderer = QSvgRenderer(svg_bytes)
+        pixmap = QPixmap(render_size, render_size)
+        try:
+            pixmap.fill(Qt.GlobalColor.transparent)
+        except:
+            pixmap.fill(Qt.transparent)
+            
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        
+        # Set scalable contents on label so it downscales the high-res pixmap
+        label.setPixmap(pixmap)
+        label.setScaledContents(True)
+
+    def setup_ui(self):
+        # Main outer layout - positions content at "optical center" (15% from top)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Add spacing at top (15% of typical height ~600px = 90px)
+        outer_layout.addSpacing(90)
+
+        # THE INVISIBLE COLUMN - Container with fixed width (380px)
+        container = QWidget()
+        container.setMaximumWidth(380)
+        container.setStyleSheet("background: transparent;")
+
+        # Inner layout for the container
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # HEADER SECTION - Title and Creator grouped close together
+        # Title
+        title = QLabel("OpenEvidence Add-On")
+        title.setStyleSheet("""
+            font-size: 26px;
+            font-weight: 700;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0px 0px 8px 0px;
+        """)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        # Creator name
+        creator = QLabel("Created by Luke Pettit")
+        creator.setStyleSheet("""
+            font-size: 14px;
+            color: #777777;
+            font-weight: 500;
+        """)
+        creator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(creator)
+
+        # Gap after header (32px)
+        layout.addSpacing(32)
+
+        # CONTENT SECTION - Description text (LEFT-ALIGNED to match box edge)
+        description = QLabel("To enable this add-on, please support this project by giving us a free star on GitHub.")
+        description.setWordWrap(True)
+        description.setStyleSheet("""
+            font-size: 15px;
+            color: #BBBBBB;
+            font-weight: 400;
+            line-height: 1.5;
+            padding-left: 2px;
+        """)
+        description.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(description)
+
+        # Small gap before checkbox (20px)
+        layout.addSpacing(20)
+
+        # CHECKBOX ROW - custom widget using QPushButton for layout control
+        self.star_btn = QPushButton()
+        self.star_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.star_btn.setFixedHeight(54)
+        self.star_btn.setStyleSheet("""
+            QPushButton {
+                background: #2b2b2b;
+                border: 1px solid #444444;
+                border-radius: 8px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background: #3a3a3a;
+                border-color: #666666;
+            }
+        """)
+        
+        # Layout for the button content
+        btn_layout = QHBoxLayout(self.star_btn)
+        btn_layout.setContentsMargins(16, 0, 16, 0)
+        btn_layout.setSpacing(12)
+        
+        # 1. Checkbox Icon
+        self.checkbox_label = QLabel()
+        self.checkbox_label.setFixedSize(20, 20)
+        self.checkbox_label.setStyleSheet("background: transparent; border: none;")
+        self.checkbox_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        
+        # SVG for empty checkbox
+        empty_checkbox_svg = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="20" height="20" rx="5" stroke="#FFFFFF" stroke-width="2"/>
+        </svg>"""
+        self.set_icon_from_svg(self.checkbox_label, empty_checkbox_svg)
+        btn_layout.addWidget(self.checkbox_label)
+        
+        # 2. Text
+        self.star_text = QLabel("Star on GitHub")
+        self.star_text.setStyleSheet("color: #FFFFFF; font-size: 15px; font-weight: 500; border: none; background: transparent;")
+        self.star_text.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        btn_layout.addWidget(self.star_text)
+        
+        # 3. Spacer to push arrow to the right
+        btn_layout.addStretch()
+        
+        # 4. Arrow Icon
+        self.arrow_label = QLabel()
+        self.arrow_label.setFixedSize(20, 20)
+        self.arrow_label.setStyleSheet("background: transparent; border: none;")
+        self.arrow_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        
+        # SVG for external link arrow
+        arrow_svg = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="17" x2="17" y2="7"></line>
+            <polyline points="7 7 17 7 17 17"></polyline>
+        </svg>"""
+        self.set_icon_from_svg(self.arrow_label, arrow_svg)
+        btn_layout.addWidget(self.arrow_label)
+        
+        self.star_btn.clicked.connect(self.on_star_clicked)
+        layout.addWidget(self.star_btn)
+        
+        # Gap before Next button (16px)
+        layout.addSpacing(16)
+        
+        # BIG NEXT BUTTON - Grayed out "locked" state
+        self.continue_btn = QPushButton("Next →")
+        self.continue_btn.setCursor(QCursor(Qt.CursorShape.ForbiddenCursor))
+        self.continue_btn.setEnabled(False)
+        self.continue_btn.setStyleSheet("""
+            QPushButton {
+                background: #333333;
+                color: #666666;
+                border: 1px solid #444444;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                padding: 16px;
+            }
+        """)
+        self.continue_btn.clicked.connect(self.on_continue_clicked)
+        layout.addWidget(self.continue_btn)
+
+        # Add the container to the outer layout (horizontally centered)
+        outer_layout.addWidget(container, 0, Qt.AlignmentFlag.AlignHCenter)
+        outer_layout.addStretch(1)
+
+    def on_star_clicked(self):
+        if not self.step_completed:
+            import webbrowser
+            webbrowser.open("https://github.com/Lukeyp43/Anki-OpenEvidence-Add-On")
+
+            self.step_completed = True
+
+            # Update Star Button to checked state
+            self.star_btn.setStyleSheet("""
+                QPushButton {
+                    background: #3498db;
+                    border: 1px solid #3498db;
+                    border-radius: 8px;
+                }
+            """)
+            self.star_btn.setEnabled(False)
+            self.star_btn.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+            
+            # Update icons/text for checked state
+            # Checkbox becomes checkmark
+            check_svg = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>"""
+            self.set_icon_from_svg(self.checkbox_label, check_svg)
+            
+            # Arrow becomes checkmark too
+            self.set_icon_from_svg(self.arrow_label, check_svg)
+
+            # Update Continue Button to UNLOCKED state
+            self.continue_btn.setEnabled(True)
+            self.continue_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            self.continue_btn.setStyleSheet("""
+                QPushButton {
+                    background: #3498db;
+                    color: #FFFFFF;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    padding: 16px;
+                }
+                QPushButton:hover {
+                    background: #5dade2;
+                }
+            """)
+
+    def on_continue_clicked(self):
+        # Save config
+        config = mw.addonManager.getConfig(__name__) or {}
+        config["onboarding_completed"] = True
+        mw.addonManager.writeConfig(__name__, config)
+
+        # Replace widget with actual OpenEvidence panel
+        global dock_widget
+        if dock_widget:
+            panel = OpenEvidencePanel()
+            dock_widget.setWidget(panel)
 
 def toggle_panel():
     """Toggle the OpenEvidence dock widget visibility"""
     global dock_widget
-    
+
     if dock_widget is None:
         create_dock_widget()
-    
+
     if dock_widget.isVisible():
         dock_widget.hide()
     else:
@@ -339,7 +587,7 @@ def toggle_panel():
         if dock_widget.isFloating():
             dock_widget.setFloating(False)
             mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock_widget)
-        
+
         dock_widget.show()
         dock_widget.raise_()
 
