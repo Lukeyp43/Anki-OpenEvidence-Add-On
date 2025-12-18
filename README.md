@@ -9,7 +9,7 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 - 🎯 **Modern UI**: Minimalistic design with smooth hover effects
 - 🔄 **Flexible Layout**: Dock, undock, or resize the panel as needed
 - ⚡ **Quick Access**: Toggle the panel on/off with a single click
-- ⌨️ **Tab Key Shortcut**: Press Tab while reviewing to send card text directly to OpenEvidence search
+- ⌨️ **Shift Key Shortcut**: Press Shift in the OpenEvidence search box to auto-fill with current card text
 
 ## Installation
 
@@ -41,18 +41,33 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 
 ### Quick Search Feature ⚡
 
-Press **Tab** to automatically send the current card's text to the OpenEvidence search box - works from anywhere!
-
-**Works in two ways:**
-1. **Press Tab while reviewing in Anki** → Sends the current card text to OpenEvidence
-2. **Press Tab while focused on the OpenEvidence panel** → Fills the search box with the current card text
+Press **Shift** while focused on the OpenEvidence search box to automatically fill it with your current card's text!
 
 **How it works:**
-- Press Tab on the **question side** → Sends the question text
-- Press Tab on the **answer side** → Sends the answer text  
-- The OpenEvidence panel will automatically open if it's hidden
-- The text will be inserted into the search box, ready for you to search
-- Works whether you're focused on the Anki card OR the OpenEvidence panel!
+1. Review a card in Anki
+2. Click on the OpenEvidence search box (the input must be actively focused)
+3. Press **Shift** → The search box fills with formatted card text
+
+**Smart Formatting:**
+- On the **question side**:
+  ```
+  Can you explain this to me:
+  Question:
+  [Your question text]
+  ```
+
+- On the **answer side**:
+  ```
+  Can you explain this to me:
+  Question:
+  [Your question text]
+  
+  Answer:
+  [Your answer text]
+  ```
+
+**Important:** Shift only works when you're actively focused on the OpenEvidence search box. Pressing Shift while in Anki or elsewhere will work normally and won't trigger any auto-fill.
+
 
 ## Configuration
 

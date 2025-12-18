@@ -9,6 +9,9 @@ from aqt.utils import showInfo, tooltip
 # Global reference to prevent garbage collection
 dock_widget = None
 current_card_text = ""  # Store the current card text for Tab key access
+current_card_question = ""  # Store just the question
+current_card_answer = ""  # Store just the answer
+is_showing_answer = False  # Track if we're showing the answer side
 
 class CustomTitleBar(QWidget):
     """Custom title bar with pointer cursor on buttons"""
@@ -140,63 +143,145 @@ class OpenEvidencePanel(QWidget):
         try:
             from PyQt6.QtWebEngineWidgets import QWebEngineView
             from PyQt6.QtCore import QEvent
+            from PyQt6.QtWebEngineCore import QWebEngineSettings
         except ImportError:
             try:
-                from PyQt5.QtWebEngineWidgets import QWebEngineView
+                from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
                 from PyQt5.QtCore import QEvent
             except ImportError:
                 # Fallback for some Anki versions where it's exposed differently or not available
-                # But modern Anki should have it.
                 from aqt.qt import QWebEngineView, QEvent
+                try:
+                    from aqt.qt import QWebEngineSettings
+                except:
+                    QWebEngineSettings = None
 
         self.web = QWebEngineView(self)
+        
+        # Prevent the webview from stealing focus on navigation
+        if QWebEngineSettings:
+            try:
+                self.web.settings().setAttribute(QWebEngineSettings.WebAttribute.FocusOnNavigationEnabled, False)
+            except:
+                pass
+        
         layout.addWidget(self.web)
         
-        # Install event filter after the page loads (when focusProxy is available)
-        self.web.loadFinished.connect(self.install_event_filter)
+        # Inject Shift key listener after page loads
+        self.web.loadFinished.connect(self.inject_shift_key_listener)
         
         self.web.load(QUrl("https://www.openevidence.com/"))
     
-    def install_event_filter(self):
-        """Install event filter after page has loaded"""
-        focus_proxy = self.web.focusProxy()
-        if focus_proxy is not None:
-            focus_proxy.installEventFilter(self)
-    
-    def eventFilter(self, source, event):
-        """Catch Tab key press in the OpenEvidence webview"""
-        try:
-            from PyQt6.QtCore import QEvent, Qt
-        except ImportError:
-            from PyQt5.QtCore import QEvent, Qt
-        
-        if event.type() == QEvent.Type.KeyPress and source is self.web.focusProxy():
-            # Check if Tab key is pressed (without Shift, Ctrl, Alt, or Cmd)
-            if event.key() == Qt.Key.Key_Tab and not (event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)):
-                # Get the stored card text
-                global current_card_text
-                if current_card_text:
-                    # Fill the OpenEvidence search box with the card text
-                    js_code = f"""
-                    (function() {{
-                        var searchInput = document.querySelector('input[placeholder*="medical"]') ||
-                                        document.querySelector('input[placeholder*="question"]') ||
-                                        document.querySelector('textarea[placeholder*="medical"]') ||
-                                        document.querySelector('textarea[placeholder*="question"]') ||
-                                        document.querySelector('input[type="text"]') ||
-                                        document.querySelector('textarea');
+    def inject_shift_key_listener(self):
+        """Inject JavaScript to listen for Shift key ONLY when search input is actively focused"""
+        shift_listener_js = """
+        (function() {
+            console.log('Anki: Shift key listener injected for OpenEvidence');
+            
+            // Listen for Shift key on the entire document
+            document.addEventListener('keydown', function(event) {
+                // Only handle Shift key by itself (no other modifiers)
+                if (event.key === 'Shift' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+                    // Check if the ACTIVE ELEMENT is specifically the OpenEvidence search input
+                    var activeElement = document.activeElement;
+                    
+                    // Make sure we're in an input/textarea element
+                    var isInputElement = activeElement && (
+                        activeElement.tagName === 'INPUT' || 
+                        activeElement.tagName === 'TEXTAREA'
+                    );
+                    
+                    // ADDITIONAL CHECK: Make sure it's specifically the OpenEvidence search box
+                    var isOpenEvidenceSearchBox = false;
+                    if (isInputElement) {
+                        // Check if this is the main search input by looking at placeholder or attributes
+                        var placeholder = activeElement.placeholder || '';
+                        var type = activeElement.type || '';
                         
-                        if (searchInput) {{
-                            searchInput.value = `{current_card_text.replace('`', '\\`').replace('"', '\\"').replace('\\n', ' ')}`;
-                            searchInput.focus();
-                            searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        }}
-                    }})();
-                    """
-                    self.web.page().runJavaScript(js_code)
-                return True  # Consume the event
+                        // OpenEvidence search box has "Ask a medical question" placeholder
+                        isOpenEvidenceSearchBox = (
+                            placeholder.toLowerCase().includes('medical') ||
+                            placeholder.toLowerCase().includes('question') ||
+                            type === 'text' ||
+                            activeElement.tagName === 'TEXTAREA'
+                        );
+                    }
+                    
+                    // Only proceed if BOTH conditions are true:
+                    // 1. It's an input/textarea element
+                    // 2. It's the OpenEvidence search box
+                    if (isInputElement && isOpenEvidenceSearchBox) {
+                        console.log('Anki: Shift pressed in OpenEvidence search box');
+                        event.preventDefault();
+                        
+                        // Request the card text from Python via a custom property
+                        if (window.ankiCardText) {
+                            var text = window.ankiCardText;
+                            
+                            // Clear existing value first
+                            activeElement.value = '';
+                            
+                            // Use proper setter that React/Vue can detect
+                            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 
+                                'value'
+                            ).set;
+                            var nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLTextAreaElement.prototype, 
+                                'value'
+                            ).set;
+                            
+                            if (activeElement.tagName === 'INPUT') {
+                                nativeInputValueSetter.call(activeElement, text);
+                            } else if (activeElement.tagName === 'TEXTAREA') {
+                                nativeTextAreaValueSetter.call(activeElement, text);
+                            }
+                            
+                            // Dispatch proper input event that React recognizes
+                            var inputEvent = new InputEvent('input', {
+                                bubbles: true,
+                                cancelable: true,
+                                inputType: 'insertText',
+                                data: text
+                            });
+                            activeElement.dispatchEvent(inputEvent);
+                            
+                            // Also dispatch change event
+                            var changeEvent = new Event('change', { bubbles: true });
+                            activeElement.dispatchEvent(changeEvent);
+                            
+                            // Dispatch keyup event to trigger any validation
+                            var keyupEvent = new KeyboardEvent('keyup', { 
+                                bubbles: true,
+                                cancelable: true,
+                                key: ' ',
+                                code: 'Space'
+                            });
+                            activeElement.dispatchEvent(keyupEvent);
+                            
+                            console.log('Anki: Filled search box with card text using React-compatible events');
+                        } else {
+                            console.log('Anki: No card text available');
+                        }
+                    } else {
+                        console.log('Anki: Shift pressed but not in OpenEvidence search box, allowing default behavior');
+                    }
+                }
+            }, true);
+        })();
+        """
+        self.web.page().runJavaScript(shift_listener_js)
         
-        return super().eventFilter(source, event)
+        # Also inject the current card text
+        self.update_card_text_in_js()
+    
+    def update_card_text_in_js(self):
+        """Update the card text in the JavaScript context"""
+        global current_card_text
+        if current_card_text:
+            escaped_text = current_card_text.replace('\\', '\\\\').replace('`', '\\`').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
+            js_code = f"window.ankiCardText = '{escaped_text}';"
+            self.web.page().runJavaScript(js_code)
 
 def create_dock_widget():
     """Create the dock widget for OpenEvidence panel"""
@@ -252,153 +337,77 @@ def toggle_panel():
         dock_widget.show()
         dock_widget.raise_()
 
-def send_text_to_openevidence(text):
-    """Send text to OpenEvidence search box"""
-    global dock_widget
-    
-    if dock_widget is None:
-        create_dock_widget()
-    
-    # Show the panel if it's hidden
-    if not dock_widget.isVisible():
-        toggle_panel()
-    
-    # Get the webview from the panel
-    panel_widget = dock_widget.widget()
-    if panel_widget and hasattr(panel_widget, 'web'):
-        # JavaScript to fill the search input on OpenEvidence
-        # This targets the main search/question input on the OpenEvidence homepage
-        js_code = f"""
-        (function() {{
-            // Try to find the search input - OpenEvidence uses various selectors
-            var searchInput = document.querySelector('input[placeholder*="medical"]') ||
-                            document.querySelector('input[placeholder*="question"]') ||
-                            document.querySelector('textarea[placeholder*="medical"]') ||
-                            document.querySelector('textarea[placeholder*="question"]') ||
-                            document.querySelector('input[type="text"]') ||
-                            document.querySelector('textarea');
-            
-            if (searchInput) {{
-                searchInput.value = `{text.replace('`', '\\`').replace('"', '\\"')}`;
-                searchInput.focus();
-                // Trigger input event in case the site listens for it
-                searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
-        }})();
-        """
-        panel_widget.web.page().runJavaScript(js_code)
-
 def on_webview_did_receive_js_message(handled, message, context):
     if message == "openevidence":
         toggle_panel()
         return (True, None)
-    elif message.startswith("oe_send_text:"):
-        # Extract the text after the prefix
-        text = message[13:]  # Remove "oe_send_text:" prefix
-        send_text_to_openevidence(text)
-        return (True, None)
     return handled
 
-# Removed the bottom bar button - icon now appears in top toolbar only
+def clean_html_text(html_text):
+    """Clean HTML text by removing tags and normalizing"""
+    # Remove style tags and their contents first
+    text = re.sub(r'<style[^>]*>.*?</style>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove script tags and their contents
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Strip remaining HTML tags
+    text = re.sub('<[^<]+?>', '', text)
+    
+    # Decode HTML entities
+    try:
+        import html
+        text = html.unescape(text)
+    except:
+        pass
+    
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
+    
+    return text
 
 def store_current_card_text(card):
-    """Store the current card text globally for Tab key access from OpenEvidence panel"""
-    global current_card_text
+    """Store the current card text globally for Shift key access from OpenEvidence panel"""
+    global current_card_text, current_card_question, current_card_answer, is_showing_answer, dock_widget
     
-    # Get the text from the card - prefer answer if showing answer, otherwise question
     try:
-        # Try to get the visible side
+        # Always get both question and answer
+        question_html = card.question()
+        answer_html = card.answer()
+        
+        # Clean both
+        current_card_question = clean_html_text(question_html)
+        current_card_answer = clean_html_text(answer_html)
+        
+        # Check which side is showing
         if mw.reviewer and mw.reviewer.state == "answer":
-            # Answer is showing
-            text = card.answer()
+            is_showing_answer = True
+            # Format with both question and answer
+            current_card_text = f"""Can you explain this to me:
+Question:
+{current_card_question}
+
+Answer:
+{current_card_answer}"""
         else:
-            # Question is showing
-            text = card.question()
+            is_showing_answer = False
+            # Format with just question
+            current_card_text = f"""Can you explain this to me:
+Question:
+{current_card_question}"""
         
-        # Remove style tags and their contents first
-        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Update the JavaScript context with new card text
+        if dock_widget and dock_widget.widget():
+            panel = dock_widget.widget()
+            if hasattr(panel, 'update_card_text_in_js'):
+                panel.update_card_text_in_js()
         
-        # Remove script tags and their contents
-        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
-        
-        # Strip remaining HTML tags
-        text = re.sub('<[^<]+?>', '', text)
-        
-        # Decode HTML entities
-        try:
-            import html
-            text = html.unescape(text)
-        except:
-            pass
-        
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        text = text.strip()
-        
-        current_card_text = text
     except:
         current_card_text = ""
-
-def inject_tab_key_listener(html, card, context):
-    """Inject JavaScript to listen for Tab key and send card text to OpenEvidence"""
-    
-    # Store the current card text whenever a card is shown
-    store_current_card_text(card)
-    
-    # Only inject in the reviewer context
-    if context != "reviewQuestion" and context != "reviewAnswer":
-        return html
-    
-    # JavaScript to handle Tab key press
-    tab_listener_js = """
-    <script>
-    (function() {
-        document.addEventListener('keydown', function(event) {
-            // Check if Tab key is pressed (without Shift, Ctrl, Alt, or Cmd)
-            if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
-                event.preventDefault(); // Prevent default Tab behavior
-                
-                // Get the card text from the answer or question div
-                var cardText = '';
-                var answerDiv = document.querySelector('.answer') || document.querySelector('#answer');
-                var questionDiv = document.querySelector('.question') || document.querySelector('#question') || document.querySelector('#qa');
-                
-                // Clone the element to avoid modifying the original
-                var sourceElement = null;
-                
-                // Prefer answer if visible, otherwise use question
-                if (answerDiv && answerDiv.offsetParent !== null) {
-                    sourceElement = answerDiv.cloneNode(true);
-                } else if (questionDiv) {
-                    sourceElement = questionDiv.cloneNode(true);
-                } else {
-                    // Fallback: get all visible text from the card body
-                    sourceElement = (document.querySelector('#qa') || document.body).cloneNode(true);
-                }
-                
-                if (sourceElement) {
-                    // Remove style and script tags from the clone
-                    var styleTags = sourceElement.querySelectorAll('style, script');
-                    styleTags.forEach(function(tag) { tag.remove(); });
-                    
-                    // Get the cleaned text
-                    cardText = sourceElement.innerText || sourceElement.textContent;
-                }
-                
-                // Clean up the text (remove extra whitespace)
-                cardText = cardText.trim().replace(/\\s+/g, ' ');
-                
-                // Send to Python via pycmd
-                if (cardText && typeof pycmd !== 'undefined') {
-                    pycmd('oe_send_text:' + cardText);
-                }
-            }
-        }, true); // Use capture phase to ensure we catch it first
-    })();
-    </script>
-    """
-    
-    return html + tab_listener_js
+        current_card_question = ""
+        current_card_answer = ""
+        is_showing_answer = False
 
 def add_toolbar_button(links, toolbar):
     """Add OpenEvidence button to the top toolbar"""
@@ -424,9 +433,6 @@ gui_hooks.top_toolbar_did_init_links.append(add_toolbar_button)
 # Initialize dock widget when main window is ready
 gui_hooks.main_window_did_init.append(create_dock_widget)
 
-# Inject Tab key listener into card reviewer and store current card text
-gui_hooks.card_will_show.append(inject_tab_key_listener)
-
-# Update stored card text when question/answer is shown
+# Update stored card text when question/answer is shown (for Shift key in OpenEvidence search box)
 gui_hooks.reviewer_did_show_question.append(store_current_card_text)
 gui_hooks.reviewer_did_show_answer.append(store_current_card_text)
