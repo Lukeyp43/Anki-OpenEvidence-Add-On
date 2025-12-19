@@ -357,14 +357,27 @@ class SettingsEditorView(QWidget):
             tooltip("Answer template must contain {question}")
             return
 
+        # Check for duplicate keybindings
+        config = mw.addonManager.getConfig(__name__) or {}
+        keybindings = config.get("keybindings", [])
+        current_keys = self.keybinding.get("keys", [])
+
+        for i, kb in enumerate(keybindings):
+            # Skip the current keybinding if we're editing
+            if self.index is not None and i == self.index:
+                continue
+
+            # Check if keys match
+            existing_keys = kb.get("keys", [])
+            if existing_keys == current_keys:
+                tooltip("This key combination is already in use by another shortcut")
+                return
+
         # Save
         self.keybinding["question_template"] = question_template
         self.keybinding["answer_template"] = answer_template
 
         # Update config
-        config = mw.addonManager.getConfig(__name__) or {}
-        keybindings = config.get("keybindings", [])
-
         if self.index is None:
             # New keybinding
             keybindings.append(self.keybinding)
@@ -388,8 +401,12 @@ class SettingsEditorView(QWidget):
         from . import dock_widget
         if dock_widget and dock_widget.widget():
             panel = dock_widget.widget()
-            if hasattr(panel, 'inject_shift_key_listener'):
-                panel.inject_shift_key_listener()
+            # Only update keybindings, don't re-inject the entire listener
+            if hasattr(panel, 'update_keybindings_in_js'):
+                panel.update_keybindings_in_js()
+                # Also update card texts to match new keybindings
+                if hasattr(panel, 'update_card_text_in_js'):
+                    panel.update_card_text_in_js()
 
 
 class SettingsListView(QWidget):
@@ -675,7 +692,18 @@ class SettingsListView(QWidget):
             self.revert_timers[id(button)] = timer
 
         elif state == "confirm":
-            # Second click - actually delete
+            # Second click - check if this is the last keybinding before attempting delete
+            config = mw.addonManager.getConfig(__name__) or {}
+            keybindings = config.get("keybindings", [])
+
+            if len(keybindings) <= 1:
+                # Cannot delete the last keybinding - show error and revert button
+                tooltip("Cannot delete the last keybinding")
+                # Revert button state immediately
+                self.revert_delete_button(button, edit_btn)
+                return
+
+            # Proceed with deletion
             # Cancel the revert timer since we're deleting
             button_id = id(button)
             if button_id in self.revert_timers:
@@ -683,13 +711,13 @@ class SettingsListView(QWidget):
                 if timer and timer.isActive():
                     timer.stop()
                 del self.revert_timers[button_id]
-            
+
             # Disconnect button to prevent further clicks during deletion
             try:
                 button.clicked.disconnect()
             except:
                 pass
-            
+
             # Defer deletion with longer delay to ensure click event fully completes
             QTimer.singleShot(50, lambda: self.delete_keybinding(index))
 
@@ -775,8 +803,12 @@ class SettingsListView(QWidget):
         from . import dock_widget
         if dock_widget and dock_widget.widget():
             panel = dock_widget.widget()
-            if hasattr(panel, 'inject_shift_key_listener'):
-                panel.inject_shift_key_listener()
+            # Only update keybindings, don't re-inject the entire listener
+            if hasattr(panel, 'update_keybindings_in_js'):
+                panel.update_keybindings_in_js()
+                # Also update card texts to match new keybindings
+                if hasattr(panel, 'update_card_text_in_js'):
+                    panel.update_card_text_in_js()
 
     def add_keybinding(self):
         """Add a new keybinding"""

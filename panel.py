@@ -389,58 +389,50 @@ class OpenEvidencePanel(QWidget):
 
     def inject_shift_key_listener(self):
         """Inject JavaScript to listen for custom keybindings"""
-        # Get keybindings from config
-        config = mw.addonManager.getConfig(__name__) or {}
-        keybindings = config.get("keybindings", [])
+        # First, update the keybindings in the global variable
+        self.update_keybindings_in_js()
 
-        # If no keybindings, add default
-        if not keybindings:
-            keybindings = [{
-                "name": "Default",
-                "keys": ["Shift", "Control/Meta"],
-                "question_template": "Can you explain this to me:\nQuestion:\n{question}",
-                "answer_template": "Can you explain this to me:\nQuestion:\n{question}\n\nAnswer:\n{answer}"
-            }]
+        # Only inject the listener once - it will read from window.ankiKeybindings
+        listener_js = """
+        (function() {
+            // Only inject if not already injected
+            if (window.ankiKeybindingListenerInjected) {
+                console.log('Anki: Keybinding listener already exists, skipping injection');
+                return;
+            }
 
-        # Convert keybindings to JSON for JavaScript
-        keybindings_json = json.dumps(keybindings)
-
-        listener_js = f"""
-        (function() {{
-            console.log('Anki: Custom keybinding listeners injected for OpenEvidence');
-
-            // Parse keybindings from Python
-            var keybindings = {keybindings_json};
+            console.log('Anki: Injecting custom keybinding listener for OpenEvidence');
+            window.ankiKeybindingListenerInjected = true;
 
             // Helper to check if pressed keys match keybinding
-            function keysMatch(event, requiredKeys) {{
-                var pressedKeys = {{}};
+            function keysMatch(event, requiredKeys) {
+                var pressedKeys = {};
 
                 if (event.shiftKey) pressedKeys['Shift'] = true;
                 if (event.ctrlKey || event.metaKey) pressedKeys['Control/Meta'] = true;
                 if (event.altKey) pressedKeys['Alt'] = true;
 
                 // Add regular key if present
-                if (event.key && event.key.length === 1) {{
+                if (event.key && event.key.length === 1) {
                     pressedKeys[event.key.toUpperCase()] = true;
-                }}
+                }
 
                 // Check if all required keys are pressed
-                for (var i = 0; i < requiredKeys.length; i++) {{
-                    if (!pressedKeys[requiredKeys[i]]) {{
+                for (var i = 0; i < requiredKeys.length; i++) {
+                    if (!pressedKeys[requiredKeys[i]]) {
                         return false;
-                    }}
-                }}
+                    }
+                }
 
                 // Check we don't have extra modifier keys
                 var expectedCount = requiredKeys.length;
                 var actualCount = Object.keys(pressedKeys).length;
 
                 return actualCount === expectedCount;
-            }}
+            }
 
             // Helper to fill input field with text
-            function fillInputField(activeElement, text) {{
+            function fillInputField(activeElement, text) {
                 // Clear existing value first
                 activeElement.value = '';
 
@@ -454,37 +446,37 @@ class OpenEvidencePanel(QWidget):
                     'value'
                 ).set;
 
-                if (activeElement.tagName === 'INPUT') {{
+                if (activeElement.tagName === 'INPUT') {
                     nativeInputValueSetter.call(activeElement, text);
-                }} else if (activeElement.tagName === 'TEXTAREA') {{
+                } else if (activeElement.tagName === 'TEXTAREA') {
                     nativeTextAreaValueSetter.call(activeElement, text);
-                }}
+                }
 
                 // Dispatch proper input event that React recognizes
-                var inputEvent = new InputEvent('input', {{
+                var inputEvent = new InputEvent('input', {
                     bubbles: true,
                     cancelable: true,
                     inputType: 'insertText',
                     data: text
-                }});
+                });
                 activeElement.dispatchEvent(inputEvent);
 
                 // Also dispatch change event
-                var changeEvent = new Event('change', {{ bubbles: true }});
+                var changeEvent = new Event('change', { bubbles: true });
                 activeElement.dispatchEvent(changeEvent);
 
                 // Dispatch keyup event to trigger any validation
-                var keyupEvent = new KeyboardEvent('keyup', {{
+                var keyupEvent = new KeyboardEvent('keyup', {
                     bubbles: true,
                     cancelable: true,
                     key: ' ',
                     code: 'Space'
-                }});
+                });
                 activeElement.dispatchEvent(keyupEvent);
-            }}
+            }
 
             // Listen for keyboard shortcuts on the entire document
-            document.addEventListener('keydown', function(event) {{
+            document.addEventListener('keydown', function(event) {
                 // Check if the ACTIVE ELEMENT is specifically the OpenEvidence search input
                 var activeElement = document.activeElement;
 
@@ -496,7 +488,7 @@ class OpenEvidencePanel(QWidget):
 
                 // Make sure it's specifically the OpenEvidence search box
                 var isOpenEvidenceSearchBox = false;
-                if (isInputElement) {{
+                if (isInputElement) {
                     var placeholder = activeElement.placeholder || '';
                     var type = activeElement.type || '';
 
@@ -506,40 +498,63 @@ class OpenEvidencePanel(QWidget):
                         type === 'text' ||
                         activeElement.tagName === 'TEXTAREA'
                     );
-                }}
+                }
 
                 // Only proceed if in OpenEvidence search box
-                if (!isInputElement || !isOpenEvidenceSearchBox) {{
+                if (!isInputElement || !isOpenEvidenceSearchBox) {
                     return;
-                }}
+                }
+
+                // Read keybindings from global variable (updated from Python)
+                var keybindings = window.ankiKeybindings || [];
 
                 // Check each keybinding
-                for (var i = 0; i < keybindings.length; i++) {{
+                for (var i = 0; i < keybindings.length; i++) {
                     var binding = keybindings[i];
 
-                    if (keysMatch(event, binding.keys)) {{
+                    if (keysMatch(event, binding.keys)) {
                         console.log('Anki: Keybinding "' + binding.name + '" triggered');
                         event.preventDefault();
 
                         // Get the appropriate text for this keybinding
-                        if (window.ankiCardTexts && window.ankiCardTexts[i]) {{
+                        if (window.ankiCardTexts && window.ankiCardTexts[i]) {
                             fillInputField(activeElement, window.ankiCardTexts[i]);
                             console.log('Anki: Filled search box with card text using React-compatible events');
-                        }} else {{
+                        } else {
                             console.log('Anki: No card text available for this keybinding');
-                        }}
+                        }
 
                         break; // Only trigger first matching keybinding
-                    }}
-                }}
-            }}, true);
-        }})();
+                    }
+                }
+            }, true);
+        })();
         """
 
         self.web.page().runJavaScript(listener_js)
 
         # Also inject the current card texts
         self.update_card_text_in_js()
+
+    def update_keybindings_in_js(self):
+        """Update the keybindings in the JavaScript context without re-injecting the listener"""
+        # Get keybindings from config
+        config = mw.addonManager.getConfig(__name__) or {}
+        keybindings = config.get("keybindings", [])
+
+        # If no keybindings, add default
+        if not keybindings:
+            keybindings = [{
+                "name": "Default",
+                "keys": ["Shift", "Control/Meta"],
+                "question_template": "Can you explain this to me:\nQuestion:\n{question}",
+                "answer_template": "Can you explain this to me:\nQuestion:\n{question}\n\nAnswer:\n{answer}"
+            }]
+
+        # Convert keybindings to JSON and inject
+        keybindings_json = json.dumps(keybindings)
+        js_code = f"window.ankiKeybindings = {keybindings_json};"
+        self.web.page().runJavaScript(js_code)
 
     def update_card_text_in_js(self):
         """Update the card texts in the JavaScript context for all keybindings"""
