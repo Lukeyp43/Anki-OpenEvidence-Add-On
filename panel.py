@@ -46,6 +46,47 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(12, 4, 4, 4)
         layout.setSpacing(2)
 
+        # Back button with arrow icon (hidden by default)
+        self.back_button = QPushButton()
+        self.back_button.setFixedSize(24, 24)
+        self.back_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.back_button.setVisible(False)  # Hidden by default
+
+        # Create high-resolution SVG icon for back button
+        back_icon_svg = """<?xml version="1.0" encoding="UTF-8"?>
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M30 12 L18 24 L30 36" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        """
+
+        # Render SVG at higher resolution for crisp display
+        svg_bytes_back = QByteArray(back_icon_svg.encode())
+        renderer_back = QSvgRenderer(svg_bytes_back)
+        pixmap_back = QPixmap(48, 48)
+        try:
+            pixmap_back.fill(Qt.GlobalColor.transparent)
+        except:
+            pixmap_back.fill(Qt.transparent)
+        painter_back = QPainter(pixmap_back)
+        renderer_back.render(painter_back)
+        painter_back.end()
+
+        self.back_button.setIcon(QIcon(pixmap_back))
+        self.back_button.setIconSize(QSize(14, 14))
+
+        self.back_button.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: rgba(255, 255, 255, 0.12);
+            }
+        """)
+        self.back_button.clicked.connect(self.go_back)
+        layout.addWidget(self.back_button)
+
         # Title label
         self.title_label = QLabel("OpenEvidence")
         self.title_label.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 13px; font-weight: 500;")
@@ -189,6 +230,29 @@ class CustomTitleBar(QWidget):
         if panel and hasattr(panel, 'toggle_settings_view'):
             panel.toggle_settings_view()
 
+    def go_back(self):
+        """Context-aware back navigation"""
+        panel = self.dock_widget.widget()
+        if panel and hasattr(panel, 'go_back'):
+            panel.go_back()
+
+    def set_state(self, is_settings):
+        """Update title bar state based on current view
+
+        Args:
+            is_settings: True for settings view, False for web view
+        """
+        if is_settings:
+            # Settings mode
+            self.title_label.setText("Settings")
+            self.back_button.setVisible(True)
+            self.settings_button.setVisible(False)
+        else:
+            # Web view mode
+            self.title_label.setText("OpenEvidence")
+            self.back_button.setVisible(False)
+            self.settings_button.setVisible(True)
+
 
 class OpenEvidencePanel(QWidget):
     """Main panel containing the web view and settings views"""
@@ -199,6 +263,9 @@ class OpenEvidencePanel(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+
+        # Set minimum width to prevent panel from becoming too narrow
+        self.setMinimumWidth(280)
 
         # Create stacked widget to switch between views
         self.stacked_widget = QStackedWidget()
@@ -234,6 +301,37 @@ class OpenEvidencePanel(QWidget):
         # Start with web view
         self.stacked_widget.setCurrentIndex(0)
 
+    def _update_title_bar(self, is_settings):
+        """Update title bar state"""
+        # Access parent dock widget's title bar
+        dock = self.parent()
+        if dock:
+            title_bar = dock.titleBarWidget()
+            if title_bar and hasattr(title_bar, 'set_state'):
+                title_bar.set_state(is_settings)
+
+    def go_back(self):
+        """Context-aware back navigation"""
+        current_index = self.stacked_widget.currentIndex()
+        if current_index == 1:
+            # We're in a settings view, check which one
+            current_widget = self.stacked_widget.widget(1)
+            # Import here to avoid circular import at module level
+            from .settings import SettingsEditorView
+
+            if isinstance(current_widget, SettingsEditorView):
+                # In editor view, discard changes and go back to list view
+                if hasattr(current_widget, 'discard_and_go_back'):
+                    current_widget.discard_and_go_back()
+                else:
+                    self.show_list_view()
+            else:
+                # In list view, go back to web view
+                self.show_web_view()
+        else:
+            # Default: go to web view
+            self.show_web_view()
+
     def toggle_settings_view(self):
         """Toggle between web view and settings view"""
         current = self.stacked_widget.currentIndex()
@@ -242,6 +340,7 @@ class OpenEvidencePanel(QWidget):
             # Reload settings in case they changed
             self.settings_view.load_keybindings()
             self.stacked_widget.setCurrentIndex(1)
+            self._update_title_bar(True)
         else:
             # Switch back to web
             self.show_web_view()
@@ -249,15 +348,33 @@ class OpenEvidencePanel(QWidget):
     def show_web_view(self):
         """Show the web view"""
         self.stacked_widget.setCurrentIndex(0)
+        self._update_title_bar(False)
 
     def show_list_view(self):
         """Show the settings list view"""
-        # Recreate settings view to refresh
-        self.stacked_widget.removeWidget(self.settings_view)
-        self.settings_view.deleteLater()
+        # Get current widget at index 1 (could be editor view or old list view)
+        current_widget = self.stacked_widget.widget(1)
+
+        # Import here to avoid circular import at module level
+        from .settings import SettingsListView
+
+        # If it's already a SettingsListView, just refresh it and show it
+        if current_widget and isinstance(current_widget, SettingsListView):
+            current_widget.load_keybindings()
+            self.stacked_widget.setCurrentIndex(1)
+            self._update_title_bar(True)
+            return
+
+        # Otherwise, remove whatever is there (likely SettingsEditorView) and create new list view
+        if current_widget:
+            self.stacked_widget.removeWidget(current_widget)
+            current_widget.deleteLater()
+
+        # Create new list view
         self.settings_view = SettingsListView(self)
         self.stacked_widget.addWidget(self.settings_view)
         self.stacked_widget.setCurrentIndex(1)
+        self._update_title_bar(True)
 
     def show_editor_view(self, keybinding, index):
         """Show the settings editor view"""
@@ -268,6 +385,7 @@ class OpenEvidencePanel(QWidget):
         old_settings.deleteLater()
         self.stacked_widget.addWidget(editor_view)
         self.stacked_widget.setCurrentIndex(1)
+        self._update_title_bar(True)
 
     def inject_shift_key_listener(self):
         """Inject JavaScript to listen for custom keybindings"""

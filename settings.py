@@ -3,18 +3,58 @@ Settings UI for the OpenEvidence add-on.
 Contains the drill-down settings interface with list and editor views.
 """
 
+import sys
 from aqt import mw
 from aqt.qt import *
 from aqt.utils import tooltip
 
 try:
     from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QTextEdit
-    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtCore import Qt, QTimer, QByteArray, QSize
+    from PyQt6.QtGui import QIcon, QPixmap, QPainter
+    from PyQt6.QtSvg import QSvgRenderer
 except ImportError:
     from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QTextEdit
-    from PyQt5.QtCore import Qt, QTimer
+    from PyQt5.QtCore import Qt, QTimer, QByteArray, QSize
+    from PyQt5.QtGui import QIcon, QPixmap, QPainter
+    from PyQt5.QtSvg import QSvgRenderer
 
 from .utils import format_keys_display, format_keys_verbose
+
+
+class ElidedLabel(QLabel):
+    """QLabel that automatically elides text with ... when space is tight"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        try:
+            self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        except:
+            # PyQt5 fallback
+            self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
+    def paintEvent(self, event):
+        """Draw elided text"""
+        painter = QPainter(self)
+        metrics = painter.fontMetrics()
+
+        # Get elide mode based on PyQt version
+        try:
+            elide_mode = Qt.TextElideMode.ElideRight
+        except AttributeError:
+            elide_mode = Qt.ElideRight
+
+        # Use contentsRect to respect margins/padding from stylesheet
+        rect = self.contentsRect()
+
+        # Get elided text that fits in current width (accounting for padding)
+        elided = metrics.elidedText(
+            self.text(),
+            elide_mode,
+            rect.width()
+        )
+
+        # Draw the elided text within the content rect
+        painter.drawText(rect, self.alignment(), elided)
 
 
 class SettingsEditorView(QWidget):
@@ -30,7 +70,7 @@ class SettingsEditorView(QWidget):
             "answer_template": "Can you explain this to me:\nQuestion:\n{question}\n\nAnswer:\n{answer}"
         }
         self.recording_keys = False
-        self.pressed_keys = set()
+        self.pressed_keys = []  # Use list to preserve key press order
         self.setup_ui()
 
     def setup_ui(self):
@@ -38,40 +78,6 @@ class SettingsEditorView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
-        # Header
-        header = QWidget()
-        header.setStyleSheet("background: #2a2a2a; border-bottom: 1px solid rgba(255, 255, 255, 0.06);")
-        header.setFixedHeight(48)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 4, 12, 4)
-
-        # Back button
-        back_btn = QPushButton("← Back")
-        back_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        back_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #ffffff;
-                border: none;
-                font-size: 14px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-            }
-        """)
-        back_btn.clicked.connect(self.save_and_go_back)
-        header_layout.addWidget(back_btn)
-
-        # Title
-        title_label = QLabel("Edit Shortcut" if self.index is not None else "New Shortcut")
-        title_label.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 13px; font-weight: 500;")
-        header_layout.addWidget(title_label)
-
-        header_layout.addStretch()
-        layout.addWidget(header)
 
         # Scrollable content area
         scroll = QScrollArea()
@@ -148,33 +154,82 @@ class SettingsEditorView(QWidget):
 
         content_layout.addStretch()
 
-        # Delete button at bottom
-        config = mw.addonManager.getConfig(__name__) or {}
-        keybindings = config.get("keybindings", [])
-        can_delete = len(keybindings) > 1 and self.index is not None
-
-        delete_btn = QPushButton("Delete Shortcut")
-        delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        delete_btn.setEnabled(can_delete)
-        delete_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {'#e74c3c' if can_delete else '#666666'};
-                border: none;
-                font-size: 13px;
-                padding: 12px;
-                text-align: center;
-            }}
-            QPushButton:hover {{
-                background: {'rgba(231, 76, 60, 0.1)' if can_delete else 'transparent'};
-                border-radius: 4px;
-            }}
-        """)
-        delete_btn.clicked.connect(self.delete_keybinding)
-        content_layout.addWidget(delete_btn)
-
         scroll.setWidget(content)
         layout.addWidget(scroll)
+
+        # Bottom section with Save button
+        bottom_section = QWidget()
+        bottom_section.setStyleSheet("background: #1e1e1e; border-top: 1px solid rgba(255, 255, 255, 0.06);")
+        bottom_layout = QVBoxLayout(bottom_section)
+        bottom_layout.setContentsMargins(16, 12, 16, 12)
+
+        # Save button (disabled by default until changes are made)
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.save_btn.setFixedHeight(44)
+        self.save_btn.setEnabled(False)  # Disabled by default
+        self._update_save_button_style()
+        self.save_btn.clicked.connect(self.save_and_go_back)
+        bottom_layout.addWidget(self.save_btn)
+
+        layout.addWidget(bottom_section)
+
+        # Store initial state to detect changes
+        self._initial_state = {
+            'keys': self.keybinding.get('keys', []).copy() if self.keybinding.get('keys') else [],
+            'question_template': self.keybinding.get('question_template', ''),
+            'answer_template': self.keybinding.get('answer_template', '')
+        }
+
+        # Connect change signals
+        self.question_template.textChanged.connect(self._on_change)
+        self.answer_template.textChanged.connect(self._on_change)
+
+    def _update_save_button_style(self):
+        """Update save button appearance based on enabled state"""
+        if self.save_btn.isEnabled():
+            self.save_btn.setStyleSheet("""
+                QPushButton {
+                    background: #3b82f6;
+                    color: #ffffff;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: #2563eb;
+                }
+            """)
+        else:
+            self.save_btn.setStyleSheet("""
+                QPushButton {
+                    background: #333333;
+                    color: #666666;
+                    border: 1px solid #444444;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                }
+            """)
+
+    def _on_change(self):
+        """Detect if any changes were made and enable/disable save button"""
+        # Get current state
+        current_keys = self.keybinding.get('keys', [])
+        current_question = self.question_template.toPlainText()
+        current_answer = self.answer_template.toPlainText()
+
+        # Compare with initial state
+        has_changes = (
+            current_keys != self._initial_state['keys'] or
+            current_question != self._initial_state['question_template'] or
+            current_answer != self._initial_state['answer_template']
+        )
+
+        # Enable/disable save button
+        self.save_btn.setEnabled(has_changes)
+        self._update_save_button_style()
 
     def _update_key_display(self):
         """Update the key display button appearance"""
@@ -227,7 +282,7 @@ class SettingsEditorView(QWidget):
     def start_recording(self):
         """Start recording key presses"""
         self.recording_keys = True
-        self.pressed_keys = set()
+        self.pressed_keys = []  # Use list to preserve key press order
         self._update_key_display()
         self.setFocus()
 
@@ -235,11 +290,13 @@ class SettingsEditorView(QWidget):
         """Stop recording and save keys"""
         self.recording_keys = False
         if self.pressed_keys:
-            self.keybinding["keys"] = sorted(list(self.pressed_keys))
+            # Keep the original order (don't sort)
+            self.keybinding["keys"] = self.pressed_keys.copy()
         self._update_key_display()
+        self._on_change()  # Check if changes were made
 
     def keyPressEvent(self, event):
-        """Capture key presses when recording"""
+        """Capture key presses when recording (max 3 keys)"""
         if self.recording_keys:
             key = event.key()
             key_map = {
@@ -249,16 +306,39 @@ class SettingsEditorView(QWidget):
                 Qt.Key.Key_Alt if hasattr(Qt.Key, 'Key_Alt') else Qt.Key_Alt: "Alt",
             }
 
-            if key in key_map:
-                self.pressed_keys.add(key_map[key])
-            elif event.text() and event.text().isprintable():
-                self.pressed_keys.add(event.text().upper())
+            # Check if this is a valid key press (not just a modifier being held)
+            is_valid_key = key in key_map or (event.text() and event.text().isprintable())
 
-            # Auto-stop after 500ms
+            # Maximum of 3 keys allowed - show error if trying to add more
+            if len(self.pressed_keys) >= 3 and is_valid_key:
+                tooltip("Maximum of 3 keys allowed for shortcuts")
+                return
+
+            # Add key to list if not already present (preserves order)
+            if key in key_map:
+                key_name = key_map[key]
+                if key_name not in self.pressed_keys:
+                    self.pressed_keys.append(key_name)
+            elif event.text() and event.text().isprintable():
+                key_name = event.text().upper()
+                if key_name not in self.pressed_keys:
+                    self.pressed_keys.append(key_name)
+
+            # Auto-stop after 500ms, or immediately if we hit 3 keys
             if len(self.pressed_keys) > 0:
-                QTimer.singleShot(500, self.stop_recording)
+                if len(self.pressed_keys) >= 3:
+                    # Stop immediately when we reach 3 keys
+                    QTimer.singleShot(100, self.stop_recording)
+                else:
+                    # Otherwise wait 500ms for more keys
+                    QTimer.singleShot(500, self.stop_recording)
         else:
             super().keyPressEvent(event)
+
+    def discard_and_go_back(self):
+        """Discard changes and return to list view without saving"""
+        if self.parent_panel and hasattr(self.parent_panel, 'show_list_view'):
+            self.parent_panel.show_list_view()
 
     def save_and_go_back(self):
         """Save changes and return to list view"""
@@ -302,29 +382,6 @@ class SettingsEditorView(QWidget):
         if self.parent_panel and hasattr(self.parent_panel, 'show_list_view'):
             self.parent_panel.show_list_view()
 
-    def delete_keybinding(self):
-        """Delete this keybinding"""
-        if self.index is None:
-            return
-
-        config = mw.addonManager.getConfig(__name__) or {}
-        keybindings = config.get("keybindings", [])
-
-        if len(keybindings) <= 1:
-            tooltip("Cannot delete the last keybinding")
-            return
-
-        del keybindings[self.index]
-        config["keybindings"] = keybindings
-        mw.addonManager.writeConfig(__name__, config)
-
-        # Refresh JavaScript in panel
-        self._refresh_panel_javascript()
-
-        # Go back to list
-        if self.parent_panel and hasattr(self.parent_panel, 'show_list_view'):
-            self.parent_panel.show_list_view()
-
     def _refresh_panel_javascript(self):
         """Helper to refresh JavaScript in the main panel"""
         # Import here to avoid circular imports
@@ -348,41 +405,6 @@ class SettingsListView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
-        # Header
-        header = QWidget()
-        header.setStyleSheet("background: #2a2a2a; border-bottom: 1px solid rgba(255, 255, 255, 0.06);")
-        header.setFixedHeight(48)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 4, 12, 4)
-
-        # Title
-        title_label = QLabel("Settings")
-        title_label.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 13px; font-weight: 500;")
-        header_layout.addWidget(title_label)
-
-        header_layout.addStretch()
-
-        # Close button
-        close_btn = QPushButton("✕")
-        close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        close_btn.setFixedSize(24, 24)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #ffffff;
-                border: none;
-                font-size: 16px;
-            }
-            QPushButton:hover {
-                background: rgba(239, 68, 68, 0.2);
-                border-radius: 4px;
-            }
-        """)
-        close_btn.clicked.connect(self.close_settings)
-        header_layout.addWidget(close_btn)
-
-        layout.addWidget(header)
 
         # Scrollable list
         scroll = QScrollArea()
@@ -461,58 +483,264 @@ class SettingsListView(QWidget):
 
     def create_keybinding_card(self, kb, index):
         """Create a card widget for a keybinding"""
-        card = QPushButton()
-        card.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        card.setFixedHeight(72)
-        card.clicked.connect(lambda: self.edit_keybinding(index))
+        # Main card container (not clickable - buttons handle actions)
+        card = QWidget()
+        card.setFixedHeight(56)
 
-        # Create card layout
-        card_widget = QWidget()
-        card_layout = QHBoxLayout(card_widget)
-        card_layout.setContentsMargins(16, 12, 16, 12)
+        # Main horizontal layout
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(16, 8, 16, 8)
         card_layout.setSpacing(12)
 
         # Left: Keycaps
-        keys_label = QLabel(format_keys_display(kb.get("keys", [])))
-        keys_label.setStyleSheet("""
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: Menlo, Monaco, 'Courier New', monospace;
-        """)
-        keys_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        card_layout.addWidget(keys_label)
+        keycaps_layout = QHBoxLayout()
+        keycaps_layout.setSpacing(4)
 
-        # Middle: Template preview
+        keys = kb.get("keys", [])
+        for key in keys:
+            # Format key display
+            if key == "Control/Meta":
+                display = "⌘" if sys.platform == "darwin" else "Ctrl"
+            elif key == "Shift":
+                display = "⇧"
+            elif key == "Alt":
+                display = "⌥"
+            else:
+                display = key
+
+            keycap = QLabel(display)
+            keycap.setStyleSheet("""
+                QLabel {
+                    background: #374151;
+                    border: 1px solid #4b5563;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: #ffffff;
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+            """)
+            keycaps_layout.addWidget(keycap)
+
+        card_layout.addLayout(keycaps_layout)
+
+        # Middle: Template preview (uses ElidedLabel for responsive text)
         template = kb.get("question_template", "")
-        preview = template[:40] + "..." if len(template) > 40 else template
-        preview_label = QLabel(preview.replace("\n", " "))
-        preview_label.setStyleSheet("color: #9ca3af; font-size: 12px;")
-        preview_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        preview = template.replace("\n", " ")
+        preview_label = ElidedLabel(preview)
+        preview_label.setStyleSheet("""
+            color: #9ca3af;
+            font-size: 12px;
+            padding-left: 12px;
+        """)
+        # Add with stretch factor 1 to absorb flexible space
         card_layout.addWidget(preview_label, 1)
 
-        # Right: Chevron
-        chevron = QLabel(">")
-        chevron.setStyleSheet("color: #9ca3af; font-size: 16px;")
-        chevron.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        card_layout.addWidget(chevron)
+        # Right: Edit button (pencil icon)
+        edit_btn = QPushButton()
+        edit_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        edit_btn.setFixedSize(32, 32)
 
-        # Set the layout content as button background
-        card.setLayout(card_layout)
-        card.setStyleSheet("""
+        # Create high-resolution SVG icon for edit button
+        edit_icon_svg = """<?xml version="1.0" encoding="UTF-8"?>
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M38 10L32 4L12 24L10 34L20 32L40 12L38 10Z M32 4L38 10 M16 28L20 32" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        """
+
+        # Render SVG at higher resolution for crisp display
+        svg_bytes_edit = QByteArray(edit_icon_svg.encode())
+        renderer_edit = QSvgRenderer(svg_bytes_edit)
+        pixmap_edit = QPixmap(48, 48)
+        try:
+            pixmap_edit.fill(Qt.GlobalColor.transparent)
+        except:
+            pixmap_edit.fill(Qt.transparent)
+        painter_edit = QPainter(pixmap_edit)
+        renderer_edit.render(painter_edit)
+        painter_edit.end()
+
+        edit_btn.setIcon(QIcon(pixmap_edit))
+        edit_btn.setIconSize(QSize(16, 16))
+
+        edit_btn.setStyleSheet("""
             QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+        """)
+        edit_btn.clicked.connect(lambda: self.edit_keybinding(index))
+        card_layout.addWidget(edit_btn)
+
+        # Right: Delete button (trash icon with confirm logic)
+        delete_btn = QPushButton()
+        delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        delete_btn.setFixedSize(32, 32)
+        delete_btn.setProperty("state", "normal")
+        delete_btn.setProperty("index", index)
+
+        # Create high-resolution SVG icon for delete button
+        delete_icon_svg = """<?xml version="1.0" encoding="UTF-8"?>
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 10V6h16v4M8 10h32M12 10v28h24V10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M20 18v14M28 18v14" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        """
+
+        # Render SVG at higher resolution for crisp display
+        svg_bytes_delete = QByteArray(delete_icon_svg.encode())
+        renderer_delete = QSvgRenderer(svg_bytes_delete)
+        pixmap_delete = QPixmap(48, 48)
+        try:
+            pixmap_delete.fill(Qt.GlobalColor.transparent)
+        except:
+            pixmap_delete.fill(Qt.transparent)
+        painter_delete = QPainter(pixmap_delete)
+        renderer_delete.render(painter_delete)
+        painter_delete.end()
+
+        delete_btn.setIcon(QIcon(pixmap_delete))
+        delete_btn.setIconSize(QSize(16, 16))
+
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: rgba(239, 68, 68, 0.1);
+            }
+        """)
+        # Store reference to edit button so we can hide it during confirm
+        delete_btn.setProperty("edit_btn", edit_btn)
+        delete_btn.clicked.connect(lambda: self.handle_delete_click(delete_btn, index))
+        card_layout.addWidget(delete_btn)
+
+        # Card background
+        card.setStyleSheet("""
+            QWidget {
                 background: #2c2c2c;
                 border: 1px solid #374151;
                 border-radius: 8px;
-                text-align: left;
-            }
-            QPushButton:hover {
-                background: #374151;
-                border-color: #4b5563;
             }
         """)
 
         return card
+
+    def handle_delete_click(self, button, index):
+        """Handle delete button click with confirmation"""
+        state = button.property("state")
+
+        if state == "normal":
+            # First click - show confirm
+            button.setIcon(QIcon())  # Remove icon
+            button.setText("Confirm?")
+            button.setProperty("state", "confirm")
+            # Expand button to fit text
+            button.setFixedSize(70, 32)
+            button.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    color: #dc2626;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: rgba(220, 38, 38, 0.1);
+                }
+            """)
+
+            # Hide edit button to prevent card overflow
+            edit_btn = button.property("edit_btn")
+            if edit_btn:
+                edit_btn.hide()
+
+            # Start 3-second timer to revert
+            QTimer.singleShot(3000, lambda: self.revert_delete_button(button))
+
+        elif state == "confirm":
+            # Second click - actually delete
+            self.delete_keybinding(index)
+
+    def revert_delete_button(self, button):
+        """Revert delete button to normal state after timeout"""
+        if button.property("state") == "confirm":
+            button.setText("")
+            button.setProperty("state", "normal")
+
+            # Show edit button again
+            edit_btn = button.property("edit_btn")
+            if edit_btn:
+                edit_btn.show()
+
+            # Recreate delete icon
+            delete_icon_svg = """<?xml version="1.0" encoding="UTF-8"?>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 10V6h16v4M8 10h32M12 10v28h24V10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M20 18v14M28 18v14" stroke="white" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            """
+
+            svg_bytes_delete = QByteArray(delete_icon_svg.encode())
+            renderer_delete = QSvgRenderer(svg_bytes_delete)
+            pixmap_delete = QPixmap(48, 48)
+            try:
+                pixmap_delete.fill(Qt.GlobalColor.transparent)
+            except:
+                pixmap_delete.fill(Qt.transparent)
+            painter_delete = QPainter(pixmap_delete)
+            renderer_delete.render(painter_delete)
+            painter_delete.end()
+
+            button.setIcon(QIcon(pixmap_delete))
+            button.setIconSize(QSize(16, 16))
+            # Restore original button size
+            button.setFixedSize(32, 32)
+
+            button.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background: rgba(239, 68, 68, 0.1);
+                }
+            """)
+
+    def delete_keybinding(self, index):
+        """Delete a keybinding"""
+        config = mw.addonManager.getConfig(__name__) or {}
+        keybindings = config.get("keybindings", [])
+
+        if len(keybindings) <= 1:
+            tooltip("Cannot delete the last keybinding")
+            return
+
+        del keybindings[index]
+        config["keybindings"] = keybindings
+        mw.addonManager.writeConfig(__name__, config)
+
+        # Refresh the list
+        self.load_keybindings()
+
+        # Refresh JavaScript in panel
+        self._refresh_panel_javascript()
+
+    def _refresh_panel_javascript(self):
+        """Helper to refresh JavaScript in the main panel"""
+        from . import dock_widget
+        if dock_widget and dock_widget.widget():
+            panel = dock_widget.widget()
+            if hasattr(panel, 'inject_shift_key_listener'):
+                panel.inject_shift_key_listener()
 
     def add_keybinding(self):
         """Add a new keybinding"""
@@ -523,8 +751,3 @@ class SettingsListView(QWidget):
         """Edit a keybinding"""
         if self.parent_panel and hasattr(self.parent_panel, 'show_editor_view'):
             self.parent_panel.show_editor_view(self.keybindings[index].copy(), index)
-
-    def close_settings(self):
-        """Close settings and return to main view"""
-        if self.parent_panel and hasattr(self.parent_panel, 'show_web_view'):
-            self.parent_panel.show_web_view()
