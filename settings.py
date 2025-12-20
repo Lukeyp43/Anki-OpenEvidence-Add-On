@@ -584,13 +584,13 @@ class SettingsListView(QWidget):
             self.keybindings = [
                 {
                     "name": "Daily Driver",
-                    "keys": ["Shift", "Control/Meta"],
+                    "keys": ["Control/Meta", "Shift"],
                     "question_template": "{front}",
                     "answer_template": "Question:\n{front}\nAnswer:\n{back}"
                 },
                 {
                     "name": "Deep Dive",
-                    "keys": ["Shift", "Alt"],
+                    "keys": ["Alt", "Shift"],
                     "question_template": "Can you explain this to me:\nQuestion:\n{front}",
                     "answer_template": "Can you explain this to me:\nQuestion:\n{front}\n\nAnswer:\n{back}"
                 }

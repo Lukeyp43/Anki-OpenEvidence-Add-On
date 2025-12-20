@@ -571,10 +571,14 @@ class OpenEvidencePanel(QWidget):
                 return actualCount === expectedCount;
             }
 
-            // Helper to fill input field with text
+            // Helper to insert text at cursor position
             function fillInputField(activeElement, text) {
-                // Clear existing value first
-                activeElement.value = '';
+                // Get current value and cursor position
+                var currentValue = activeElement.value || '';
+                var cursorPos = activeElement.selectionStart || 0;
+
+                // Insert text at cursor position
+                var newValue = currentValue.substring(0, cursorPos) + text + currentValue.substring(activeElement.selectionEnd || cursorPos);
 
                 // Use proper setter that React/Vue can detect
                 var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -587,10 +591,14 @@ class OpenEvidencePanel(QWidget):
                 ).set;
 
                 if (activeElement.tagName === 'INPUT') {
-                    nativeInputValueSetter.call(activeElement, text);
+                    nativeInputValueSetter.call(activeElement, newValue);
                 } else if (activeElement.tagName === 'TEXTAREA') {
-                    nativeTextAreaValueSetter.call(activeElement, text);
+                    nativeTextAreaValueSetter.call(activeElement, newValue);
                 }
+
+                // Set cursor position after inserted text
+                var newCursorPos = cursorPos + text.length;
+                activeElement.setSelectionRange(newCursorPos, newCursorPos);
 
                 // Dispatch proper input event that React recognizes
                 var inputEvent = new InputEvent('input', {
