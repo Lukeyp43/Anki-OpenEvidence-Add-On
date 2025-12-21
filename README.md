@@ -9,7 +9,8 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 - 🎯 **Modern UI**: Minimalistic design with smooth hover effects
 - 🔄 **Flexible Layout**: Dock, undock, or resize the panel as needed
 - ⚡ **Quick Access**: Toggle the panel on/off with a single click
-- ⌨️ **Keyboard Shortcut**: Press **Ctrl+Shift** (or **Cmd+Shift** on Mac) in the OpenEvidence search box to auto-fill with current card text
+- ⌨️ **Smart Templates**: 3 preset keyboard shortcuts to auto-fill OpenEvidence with card content
+- ⚙️ **Customizable Settings**: Edit keyboard shortcuts and create custom templates via the settings panel
 
 ## Installation
 
@@ -39,50 +40,42 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
    - Undock the panel by clicking the pop-out button
    - Close the panel by clicking the X button or the toolbar icon
 
-### Quick Search Feature ⚡
+### Smart Templates with Keyboard Shortcuts ⚡
 
-Press **Ctrl+Shift** (or **Cmd+Shift** on Mac) while focused on the OpenEvidence search box to automatically fill it with your current card's text!
+The addon comes with **3 preset keyboard shortcuts** that let you instantly fill the OpenEvidence search box with card content in different formats. All shortcuts work while focused on the OpenEvidence search box.
 
-**How it works:**
-1. Review a card in Anki
-2. Click on the OpenEvidence search box (the input must be actively focused)
-3. Press **Ctrl+Shift** (Windows/Linux) or **Cmd+Shift** (Mac) → The search box fills with formatted card text
-
-**Smart Formatting:**
-- On the **question side**:
+**Preset 1: Standard Explain** - `Ctrl+Shift+S` (or `Cmd+Shift+S` on Mac)
+- **Question side**: Sends your question with a polite prompt
   ```
   Can you explain this to me:
-  Question:
+
   [Your question text]
   ```
-
-- On the **answer side**:
+- **Answer side**: Sends both question and answer
   ```
   Can you explain this to me:
+
   Question:
   [Your question text]
-  
+
   Answer:
   [Your answer text]
   ```
 
-**Why Ctrl+Shift?**
-- Won't interfere with Tab navigation or normal typing
-- Unlikely to trigger accidentally
-- Easy to remember and press with one hand
-- Works consistently across all platforms
+**Preset 2: Front/Back** - `Ctrl+Shift+Q` (or `Cmd+Shift+Q` on Mac)
+- Sends only the front (question) of your card on both sides
+- Perfect for when you only want to search the question
 
+**Preset 3: Back Only** - `Ctrl+Shift+A` (or `Cmd+Shift+A` on Mac)
+- Question side: Sends nothing (empty)
+- Answer side: Sends only the back (answer) of your card
+- Useful when you want to research just the answer content
 
-## Configuration
-
-You can customize the panel width by editing the addon's config:
-
-1. Go to **Tools → Add-ons**
-2. Select **OpenEvidence Panel**
-3. Click **Config**
-4. Adjust the settings:
-   - `width`: Panel width in pixels (default: 500)
-   - `height_percentage`: Panel height as percentage of screen (default: 0.9)
+**Customization:**
+Click the **Settings** button (gear icon) in the panel's title bar to:
+- Edit existing keyboard shortcuts
+- Modify templates for each preset
+- Create your own custom templates with `{front}` and `{back}` placeholders
 
 ## Requirements
 

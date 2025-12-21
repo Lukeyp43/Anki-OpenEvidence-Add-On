@@ -16,8 +16,12 @@ find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 echo "Creating openevidence_panel.ankiaddon..."
 zip -r ../openevidence_panel.ankiaddon \
     __init__.py \
+    panel.py \
+    settings.py \
+    utils.py \
     manifest.json \
     config.json \
+    meta.json \
     README.md \
     -x "*.pyc" -x "__pycache__/*" -x ".DS_Store" -x "package_addon.sh"
 
