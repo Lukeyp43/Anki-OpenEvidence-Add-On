@@ -181,10 +181,10 @@ HIGHLIGHT_BUBBLE_JS = """
                             flex: 1;
                             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                             resize: none;
-                            overflow-y: hidden;
+                            overflow-y: auto;
                             min-height: 10px;
-                            max-height: 80px;
-                            line-height: 1;
+                            max-height: 100px;
+                            line-height: 1.3;
                             word-wrap: break-word;
                             margin: 0;
                         "
