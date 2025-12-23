@@ -289,15 +289,16 @@ HIGHLIGHT_BUBBLE_JS = """
         function updateContextPill() {
             if (contextText) {
                 // State B: Active (Selection)
-                const truncated = contextText.length > 20 ? contextText.substring(0, 20) + '...' : contextText;
+                const truncated = contextText.length > 9 ? contextText.substring(0, 9) + '...' : contextText;
                 contextTextSpan.textContent = '"' + truncated + '"';
                 contextClearBtn.style.display = 'block';
 
-                // Style changes (minimal to maintain same size)
+                // Style changes with glow effect to show selection
                 contextPill.style.borderStyle = 'solid';
-                contextPill.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                contextPill.style.borderColor = 'rgba(59, 130, 246, 0.6)';
                 contextPill.style.color = '#e5e7eb';
-                contextPill.style.background = 'rgba(255, 255, 255, 0.05)';
+                contextPill.style.background = 'rgba(59, 130, 246, 0.1)';
+                contextPill.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.4)';
             } else {
                 // State A: Empty (Default)
                 contextTextSpan.textContent = 'Select text +';
@@ -308,6 +309,7 @@ HIGHLIGHT_BUBBLE_JS = """
                 contextPill.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                 contextPill.style.color = '#9ca3af';
                 contextPill.style.background = 'rgba(255, 255, 255, 0.05)';
+                contextPill.style.boxShadow = 'none';
             }
         }
 
@@ -493,6 +495,7 @@ HIGHLIGHT_BUBBLE_JS = """
     function hideBubble() {
         bubble.style.display = 'none';
         currentState = 'default';
+        contextText = ''; // Clear context when bubble is hidden
     }
 
     // Handle mouseup event
@@ -509,28 +512,13 @@ HIGHLIGHT_BUBBLE_JS = """
                 const rect = range.getBoundingClientRect();
 
                 showBubble(rect, text);
-            } else {
-                // No selection or no cmd key, hide bubble if clicking outside
-                if (!bubble.contains(e.target)) {
-                    hideBubble();
-                }
             }
+            // Removed auto-hide when clicking outside - only X button closes bubble
         }, 10);
     });
 
-    // Hide bubble when clicking outside
-    document.addEventListener('mousedown', (e) => {
-        if (bubble && !bubble.contains(e.target)) {
-            // Don't hide if we're in input state (user is typing a question)
-            if (currentState === 'input') {
-                return;
-            }
-            const selection = window.getSelection();
-            if (!selection.toString().trim()) {
-                hideBubble();
-            }
-        }
-    });
+    // Note: Bubble no longer auto-hides when clicking outside
+    // Only the X button in the input state can close the bubble
 
     // Create the bubble on load
     bubble = createBubble();
