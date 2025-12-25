@@ -17,7 +17,7 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 
 ### Method 1: Install from .ankiaddon file
 
-1. Download the `openevidence_panel.ankiaddon` file
+1. Download the `openevidence_ai.ankiaddon` file
 2. Double-click the file, or open Anki and go to **Tools → Add-ons → Install from file...**
 3. Select the downloaded `.ankiaddon` file
 4. Restart Anki
@@ -25,7 +25,7 @@ A modern Anki addon that integrates OpenEvidence directly into your Anki interfa
 ### Method 2: Manual Installation
 
 1. Download and extract the addon files
-2. Copy the `openevidence_panel` folder to your Anki addons directory:
+2. Copy the `openevidence_ai` folder to your Anki addons directory:
    - **Windows**: `%APPDATA%\Anki2\addons21\`
    - **Mac**: `~/Library/Application Support/Anki2/addons21/`
    - **Linux**: `~/.local/share/Anki2/addons21/`

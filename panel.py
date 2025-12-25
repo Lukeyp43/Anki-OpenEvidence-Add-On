@@ -1110,7 +1110,7 @@ class OnboardingWidget(QWidget):
 
     def on_star_clicked(self):
         if not self.step_completed:
-            webbrowser.open("https://github.com/Lukeyp43/Anki-OpenEvidence-Add-On")
+            webbrowser.open("https://github.com/Lukeyp43/OpenEvidence-AI")
 
             # Disable button to prevent multiple clicks, but keep it looking active
             self.star_btn.setEnabled(False)

@@ -13,12 +13,12 @@ echo "Cleaning __pycache__ directories..."
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 
 # Create the .ankiaddon package
-echo "Creating openevidence_panel.ankiaddon..."
+echo "Creating openevidence_ai.ankiaddon..."
 
 # Copy config.json.default to config.json for packaging
 cp config.json.default config.json
 
-zip -r ../openevidence_panel.ankiaddon \
+zip -r ../openevidence_ai.ankiaddon \
     __init__.py \
     panel.py \
     settings.py \
@@ -40,7 +40,7 @@ rm config.json
 
 if [ $? -eq 0 ]; then
     echo "✓ Package created successfully!"
-    echo "✓ Location: $(dirname "$SCRIPT_DIR")/openevidence_panel.ankiaddon"
+    echo "✓ Location: $(dirname "$SCRIPT_DIR")/openevidence_ai.ankiaddon"
     echo ""
     echo "You can now share this file with your friends."
     echo "They can install it by double-clicking or via Tools → Add-ons → Install from file"

@@ -291,8 +291,8 @@ class SettingsHomeView(QWidget):
 
     def request_feature(self):
         """Open feature request URL"""
-        webbrowser.open("https://github.com/Lukeyp43/Anki-OpenEvidence-Add-On/issues/new?labels=feature%20request")
+        webbrowser.open("https://github.com/Lukeyp43/OpenEvidence-AI/issues/new?labels=feature%20request")
 
     def report_bug(self):
         """Open bug report URL"""
-        webbrowser.open("https://github.com/Lukeyp43/Anki-OpenEvidence-Add-On/issues/new?labels=bug")
+        webbrowser.open("https://github.com/Lukeyp43/OpenEvidence-AI/issues/new?labels=bug")
