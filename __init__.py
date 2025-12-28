@@ -81,6 +81,13 @@ def toggle_panel():
 
     if dock_widget.isVisible():
         dock_widget.hide()
+
+        # Notify tutorial that panel was closed
+        try:
+            from .tutorial import tutorial_event
+            tutorial_event("panel_closed")
+        except:
+            pass
     else:
         # If the dock is floating, dock it back to the right side
         if dock_widget.isFloating():
@@ -248,6 +255,13 @@ def handle_add_context(selected_text):
         """ % repr(selected_text)
 
         panel.web.page().runJavaScript(js_code)
+
+        # Notify tutorial that add to chat was used
+        try:
+            from .tutorial import tutorial_event
+            tutorial_event("add_to_chat")
+        except:
+            pass
 
 
 def handle_ask_query(query, context):

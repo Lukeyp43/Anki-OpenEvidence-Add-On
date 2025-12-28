@@ -56,6 +56,7 @@ class AccordionItem(QWidget):
         self.icon_label.setFixedSize(40, 40)
         self.icon_label.setStyleSheet("background: transparent; border: none;")
         self.icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.update_icon()
         header_layout.addWidget(self.icon_label)
 
@@ -82,6 +83,7 @@ class AccordionItem(QWidget):
         self.chevron_label.setFixedSize(20, 20)
         self.chevron_label.setStyleSheet("background: transparent; border: none;")
         self.chevron_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.chevron_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.update_chevron()
         header_layout.addWidget(self.chevron_label)
 
@@ -164,6 +166,8 @@ class AccordionItem(QWidget):
         self.toggled.emit()
 
     def is_all_tasks_completed(self):
+        if not self.task_checkboxes:
+            return False
         return all(cb.isChecked() for cb in self.task_checkboxes)
 
     def get_completed_count(self):
@@ -177,30 +181,39 @@ class AccordionItem(QWidget):
         self.content_widget.setVisible(self.is_expanded)
         self.update_chevron()
 
+    def collapse(self):
+        """Explicitly collapse this item"""
+        if self.is_expanded:
+            self.is_expanded = False
+            self.content_widget.setVisible(False)
+            self.update_chevron()
+
     def update_icon(self):
         if self.is_all_tasks_completed():
             check_svg = """<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="20" cy="20" r="20" fill="#3b82f6"/>
-                <path d="M12 20 L17 25 L28 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="20" cy="20" r="19" fill="#3b82f6"/>
+                <path d="M12 20 L17 25 L28 14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>"""
             self.set_svg_icon(self.icon_label, check_svg)
         else:
+            # Create properly centered icon with consistent viewBox
+            icon_with_color = self.icon_svg.replace('stroke="white"', 'stroke="#999999"')
             wrapped_svg = f"""<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="20" cy="20" r="20" fill="#374151"/>
-                <g transform="translate(10, 10)">
-                    {self.icon_svg}
+                <circle cx="20" cy="20" r="19" fill="#383838"/>
+                <g transform="translate(11, 11) scale(0.9)">
+                    {icon_with_color}
                 </g>
             </svg>"""
             self.set_svg_icon(self.icon_label, wrapped_svg)
 
     def update_chevron(self):
         if self.is_expanded:
-            chevron_svg = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 9 L12 15 L18 9" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            chevron_svg = """<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 7.5 L10 12.5 L15 7.5" stroke="#9ca3af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>"""
         else:
-            chevron_svg = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 6 L15 12 L9 18" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            chevron_svg = """<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7.5 5 L12.5 10 L7.5 15" stroke="#9ca3af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>"""
         self.set_svg_icon(self.chevron_label, chevron_svg)
 
@@ -208,15 +221,25 @@ class AccordionItem(QWidget):
         from aqt.qt import QByteArray
         svg_bytes = QByteArray(svg_str.encode())
         renderer = QSvgRenderer(svg_bytes)
-        pixmap = QPixmap(label.size())
+
+        # Render at 3x resolution for high quality, then scale down
+        size = label.size()
+        pixmap = QPixmap(size.width() * 3, size.height() * 3)
         try:
             pixmap.fill(Qt.GlobalColor.transparent)
         except:
             pixmap.fill(Qt.transparent)
+
         painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         renderer.render(painter)
         painter.end()
-        label.setPixmap(pixmap)
+
+        # Scale down to actual size for smooth rendering
+        scaled_pixmap = pixmap.scaled(size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        label.setPixmap(scaled_pixmap)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
 class TutorialAccordion(QWidget):
@@ -248,8 +271,8 @@ class TutorialAccordion(QWidget):
         container = QFrame()
         container.setStyleSheet("""
             QFrame {
-                background: #171717;
-                border: 1px solid #262626;
+                background: #2b2b2b;
+                border: none;
                 border-radius: 8px;
             }
         """)
@@ -260,7 +283,7 @@ class TutorialAccordion(QWidget):
         # Header
         header = QWidget()
         header.setFixedHeight(56)  # Lock header height
-        header.setStyleSheet("background: transparent; border-bottom: 1px solid #262626;")
+        header.setStyleSheet("background: transparent;")
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(24, 16, 16, 16)
         header_layout.setSpacing(0)
@@ -285,7 +308,7 @@ class TutorialAccordion(QWidget):
             }
         """)
         minus_svg = """<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 12 L19 12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <path d="M6 12 L18 12" stroke="white" stroke-width="2" stroke-linecap="round"/>
         </svg>"""
         self.set_svg_icon(self.collapse_btn, minus_svg, 24)
         self.collapse_btn.clicked.connect(self.toggle_collapse)
@@ -303,7 +326,7 @@ class TutorialAccordion(QWidget):
         # Progress section
         progress_widget = QWidget()
         progress_widget.setFixedHeight(68)  # Lock progress height
-        progress_widget.setStyleSheet("background: transparent; border-bottom: 1px solid #262626;")
+        progress_widget.setStyleSheet("background: transparent;")
         progress_layout = QHBoxLayout(progress_widget)
         progress_layout.setContentsMargins(24, 20, 24, 20)
         progress_layout.setSpacing(12)
@@ -347,38 +370,45 @@ class TutorialAccordion(QWidget):
             {
                 "icon": '<path d="M2 3 L2 21 L16 21 L16 7 L12 3 Z M12 3 L12 7 L16 7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
                 "title": "Getting Started",
-                "description": "Click the book icon in toolbar",
+                "description": "Open and close the OpenEvidence panel",
                 "tasks": [
-                    {"text": "Click the book icon 📖 in toolbar", "completed": False}
-                ]
-            },
-            {
-                "icon": '<rect x="2" y="2" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="11" y="2" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="2" y="11" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/>',
-                "title": "Using Shortcuts",
-                "description": "Press shortcuts to populate search",
-                "tasks": [
-                    {"text": "Press Ctrl+Shift+S (Cmd+Shift+S on Mac)", "completed": False}
+                    {"text": "Click the book icon 📖 in the Anki toolbar to open the OpenEvidence panel", "completed": False},
+                    {"text": "Click the book icon again to close the panel", "completed": False}
                 ]
             },
             {
                 "icon": '<circle cx="9" cy="9" r="7" stroke="white" stroke-width="1.5" fill="none"/><path d="M14 14 L18 18" stroke="white" stroke-width="1.5" stroke-linecap="round"/>',
                 "title": "Quick Actions",
-                "description": "Highlight text on flashcards",
+                "description": "Highlight text and use quick actions on flashcards",
                 "tasks": [
-                    {"text": "Select text on a flashcard", "completed": False}
+                    {"text": "Hold ⌘ (Cmd) and highlight text on a flashcard to trigger the Quick Actions bubble (Ctrl on Windows)", "completed": False},
+                    {"text": "Click \"Add to Chat\" or press ⌘F (Ctrl+F on Windows) to add selected text to chat", "completed": False},
+                    {"text": "Click the gear icon ⚙️ and navigate to \"Quick Actions\" settings to view or customize shortcuts", "completed": False}
+                ]
+            },
+            {
+                "icon": '<rect x="2" y="2" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="11" y="2" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="2" y="11" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/>',
+                "title": "Templates",
+                "description": "Use keyboard shortcuts to populate search with card content",
+                "tasks": [
+                    {"text": "Open the panel, click in the search box, and press ⌘+Shift+S (Ctrl+Shift+S on Windows) to populate it with a template", "completed": False},
+                    {"text": "Notice how the search box fills with formatted text from your current flashcard", "completed": False},
+                    {"text": "Click the gear icon ⚙️ and navigate to \"Templates\" settings to view or edit all templates", "completed": False}
                 ]
             },
             {
                 "icon": '<path d="M9 2 L15 2 L18 9 L15 16 L9 16 L6 9 Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-                "title": "Customization",
-                "description": "Explore settings and customize",
+                "title": "Settings & Customization",
+                "description": "Explore and customize templates and quick actions",
                 "tasks": [
-                    {"text": "Open settings and explore options", "completed": False}
+                    {"text": "Click the gear icon ⚙️ in the panel title bar to open the settings home", "completed": False},
+                    {"text": "Click on \"Templates\" to view and edit your template shortcuts", "completed": False},
+                    {"text": "Click on \"Quick Actions\" to view and edit your highlight action shortcuts", "completed": False}
                 ]
             }
         ]
 
-        for item_data in items_data:
+        for idx, item_data in enumerate(items_data):
             item = AccordionItem(
                 item_data["icon"],
                 item_data["title"],
@@ -389,10 +419,15 @@ class TutorialAccordion(QWidget):
             self.accordion_items.append(item)
             self.accordion_layout.addWidget(item)
 
-            if item != self.accordion_items[-1]:
+            # Connect to handler that closes others first
+            item.header_btn.clicked.disconnect()
+            item.header_btn.clicked.connect(lambda checked=False, it=item: self.on_accordion_clicked(it))
+
+            # Add separator after each item except the last one
+            if idx < len(items_data) - 1:
                 separator = QFrame()
                 separator.setFixedHeight(1)
-                separator.setStyleSheet("background: #262626;")
+                separator.setStyleSheet("background: #999999; border: none;")
                 self.accordion_layout.addWidget(separator)
 
         content_layout.addWidget(accordion_container)
@@ -422,6 +457,16 @@ class TutorialAccordion(QWidget):
 
             self.move(x, y)
 
+    def on_accordion_clicked(self, clicked_item):
+        """Handle accordion item click - close all others, then toggle clicked one"""
+        # Close all other items
+        for item in self.accordion_items:
+            if item != clicked_item:
+                item.collapse()
+
+        # Toggle the clicked item
+        clicked_item.toggle()
+
     def toggle_collapse(self):
         self.is_collapsed = not self.is_collapsed
         self.content_widget.setVisible(not self.is_collapsed)
@@ -437,10 +482,12 @@ class TutorialAccordion(QWidget):
     def handle_event(self, event_name):
         """Handle tutorial events to complete tasks"""
         event_mapping = {
-            "panel_opened": (0, 0),
-            "shortcut_used": (1, 0),
-            "text_highlighted": (2, 0),
-            "settings_opened": (3, 0)
+            "panel_opened": (0, 0),        # Getting Started: open panel
+            "panel_closed": (0, 1),        # Getting Started: close panel
+            "text_highlighted": (1, 0),    # Quick Actions: highlight text
+            "add_to_chat": (1, 1),         # Quick Actions: add to chat
+            "shortcut_used": (2, 0),       # Templates: use shortcut
+            "settings_opened": (3, 0)      # Settings: open settings
         }
 
         if event_name in event_mapping:
@@ -487,20 +534,28 @@ class TutorialAccordion(QWidget):
         from aqt.qt import QByteArray, QIcon
         svg_bytes = QByteArray(svg_str.encode())
         renderer = QSvgRenderer(svg_bytes)
-        pixmap = QPixmap(size, size)
+
+        # Render at 3x resolution for high quality
+        pixmap = QPixmap(size * 3, size * 3)
         try:
             pixmap.fill(Qt.GlobalColor.transparent)
         except:
             pixmap.fill(Qt.transparent)
+
         painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         renderer.render(painter)
         painter.end()
 
+        # Scale down to actual size for smooth rendering
+        scaled_pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
         if isinstance(widget, QPushButton):
-            widget.setIcon(QIcon(pixmap))
+            widget.setIcon(QIcon(scaled_pixmap))
             widget.setIconSize(QSize(size, size))
         else:
-            widget.setPixmap(pixmap)
+            widget.setPixmap(scaled_pixmap)
 
 
 # Global reference to keep tutorial alive
