@@ -134,7 +134,7 @@ class AccordionItem(QWidget):
         self.content_widget.setStyleSheet("background: transparent; border: none;")
         self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(0, 4, 0, 12)  # 4px top, 12px bottom - reduced spacing
+        content_layout.setContentsMargins(0, 12, 0, 12)  # 12px top/bottom - ensure tasks aren't clipped
         content_layout.setSpacing(0)
 
         if self.tasks_data:
@@ -607,7 +607,7 @@ class TutorialAccordion(QWidget):
         self.section_container.setStyleSheet("background: transparent;")
         self.section_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.section_layout = QVBoxLayout(self.section_container)
-        self.section_layout.setContentsMargins(0, 0, 0, 0)
+        self.section_layout.setContentsMargins(0, 16, 0, 0)  # 16px top spacing for all sections
         self.section_layout.setSpacing(0)
 
         content_layout.addWidget(self.section_container)
@@ -626,7 +626,7 @@ class TutorialAccordion(QWidget):
             {
                 "icon": '<circle cx="10" cy="10" r="6" stroke="white" stroke-width="1.5" fill="none"/><path d="M14.5 14.5 L17.5 17.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>',
                 "title": "Quick Actions",
-                "description": "Highlight text and use quick actions on flashcards",
+                "description": "Highlight text for quick actions",
                 "tasks": [
                     {"text": "Hold ⌘ (Cmd) and highlight text on a flashcard to trigger the Quick Actions bubble (Ctrl on Windows)", "completed": False},
                     {"text": "Click \"Add to Chat\" or press ⌘F (Ctrl+F on Windows) to add selected text to chat", "completed": False},
@@ -636,7 +636,7 @@ class TutorialAccordion(QWidget):
             {
                 "icon": '<rect x="3" y="3" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="11" y="3" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="3" y="11" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/><rect x="11" y="11" width="6" height="6" rx="1" stroke="white" stroke-width="1.5" fill="none"/>',
                 "title": "Templates",
-                "description": "Use keyboard shortcuts to populate search with card content",
+                "description": "Populate search with card content",
                 "tasks": [
                     {"text": "Open the panel, click in the search box, and press ⌘+Shift+S (Ctrl+Shift+S on Windows) to populate it with a template", "completed": False},
                     {"text": "Notice how the search box fills with formatted text from your current flashcard", "completed": False},
@@ -646,7 +646,7 @@ class TutorialAccordion(QWidget):
             {
                 "icon": '<path d="M10 3 L15 6.5 L15 13.5 L10 17 L5 13.5 L5 6.5 Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
                 "title": "Settings & Customization",
-                "description": "Explore and customize templates and quick actions",
+                "description": "Customize your experience",
                 "tasks": [
                     {"text": "Click the gear icon ⚙️ in the panel title bar to open the settings home", "completed": False},
                     {"text": "Click on \"Templates\" to view and edit your template shortcuts", "completed": False},
