@@ -164,52 +164,6 @@ class AccordionItem(QWidget):
         main_layout = QHBoxLayout(task_container)
         main_layout.setContentsMargins(0, 0, 0, 8)  # Add 8px bottom margin for spacing between tasks
         main_layout.setSpacing(12)
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        # LEFT: Branch container (vertical + horizontal lines) - FIXED WITH LAYOUTS
-        branch_container = QWidget()
-        branch_container.setFixedWidth(20)
-        branch_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        branch_layout = QHBoxLayout(branch_container)
-        branch_layout.setContentsMargins(0, 0, 0, 0)
-        branch_layout.setSpacing(0)
-
-        # Vertical line container
-        vert_container = QWidget()
-        vert_container.setFixedWidth(1)
-        vert_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        vert_layout = QVBoxLayout(vert_container)
-        vert_layout.setContentsMargins(0, 0, 0, 0)
-        vert_layout.setSpacing(0)
-
-        # Top vertical line (before branch)
-        top_line = QFrame()
-        top_line.setFrameShape(QFrame.Shape.VLine)
-        top_line.setStyleSheet("background-color: #3f3f46; border: none;")
-        top_line.setFixedWidth(1)
-        top_line.setMinimumHeight(8)
-        vert_layout.addWidget(top_line)
-
-        # Horizontal branch line
-        horiz_line = QFrame()
-        horiz_line.setFrameShape(QFrame.Shape.HLine)
-        horiz_line.setStyleSheet("background-color: #3f3f46; border: none;")
-        horiz_line.setFixedHeight(1)
-        horiz_line.setFixedWidth(19)
-
-        if not is_last:
-            # Bottom vertical line (after branch) - only if not last item
-            bottom_line = QFrame()
-            bottom_line.setFrameShape(QFrame.Shape.VLine)
-            bottom_line.setStyleSheet("background-color: #3f3f46; border: none;")
-            bottom_line.setFixedWidth(1)
-            vert_layout.addWidget(bottom_line)
-            vert_layout.setStretch(1, 1)  # Bottom line expands
-
-        branch_layout.addWidget(vert_container, 0, Qt.AlignmentFlag.AlignLeft)
-        branch_layout.addWidget(horiz_line, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-
-        main_layout.addWidget(branch_container, 0, Qt.AlignmentFlag.AlignTop)
 
         # CENTER: Circle indicator
         circle_label = QLabel()
